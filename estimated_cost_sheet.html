@@ -5116,6 +5116,19 @@ window.onload = function() {
   renderServiceLines();
 
   updateOprTotal();
+
+  // Inject Quotation Logo into App Header
+  const appLogoIcon = document.querySelector('.logo-icon');
+  if (appLogoIcon && typeof LOGO_DATA_URL !== 'undefined') {
+    const img = document.createElement('img');
+    img.src = LOGO_DATA_URL;
+    img.style.height = '32px';
+    img.style.width = 'auto';
+    img.style.borderRadius = '4px';
+    img.style.backgroundColor = 'white'; // In case it's a transparent PNG that needs a white bg
+    img.style.padding = '2px';
+    appLogoIcon.parentNode.replaceChild(img, appLogoIcon);
+  }
 </script>
 </body>
 </html>
