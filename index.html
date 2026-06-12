@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Estimated Cost Sheet v2 — Production Logic Prototype</title>
+<title>Estimated Cost Sheet v2 — Production Logic Prototype</title><!-- rev: fixes 1-9 applied -->
 <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/[email protected]/tabler-icons.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
@@ -137,7 +137,7 @@
   .section-body {
     overflow: hidden;
     transition: max-height 0.28s cubic-bezier(0.4,0,0.2,1), opacity 0.22s ease;
-    max-height: 4000px;
+    max-height: none; /* ไม่จำกัดความสูง — ตารางยาวไม่โดนตัด (JS ใส่ค่า px ชั่วคราวตอน animate) */
     opacity: 1;
   }
   .section-body.collapsed {
@@ -257,6 +257,17 @@
   .pct-slider input[type="range"] { flex: 1; height: 6px; accent-color: var(--primary); }
   .pct-value { font-size: 11px; font-weight: 500; min-width: 40px; text-align: right; color: var(--primary); }
   .opr-amount { text-align: right; font-weight: 500; }
+  /* จัดแนวคอลัมน์จำนวนเงิน (คอลัมน์ 5) ให้ตรงกันทุกแถว:
+     input กว้างเต็มคอลัมน์ + ชดเชย padding 4px + border 1px ของ input ให้ .opr-amount ชิดขวาแนวเดียวกัน */
+  .opr-row input.form-input { width: 100%; }
+  .opr-row .opr-amount { padding-right: 5px; }
+
+  /* ===== Data table (Tab 3/5/6): ขอบขวาของตัวเลขตรงแนวเดียวกันทุกเซลล์ =====
+     เซลล์ input มี inset = div 4px + input padding 6px + border 1px = 11px
+     → เซลล์ static (Total/Profit/Subtotal/Header) ชดเชยเป็น 11px เท่ากัน */
+  .data-table-header > div.right { padding-right: 11px; }
+  .data-row > div.right { padding-right: 11px; }
+  .data-row > div.right:has(.row-input) { padding-right: 4px; }
   .opr-role-badge {
     display: inline-flex; align-items: center; gap: 3px;
     font-size: 10px; padding: 2px 7px; border-radius: 999px;
@@ -568,11 +579,11 @@
       <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px;">
         <div class="form-group">
           <label class="form-label">Customer <span class="required">*</span></label>
-          <input class="form-input" type="text" value="Central Food Retail Co., Ltd.">
+          <input class="form-input" type="text" id="custName" value="Central Food Retail Co., Ltd.">
         </div>
         <div class="form-group">
           <label class="form-label">Project <span class="required">*</span></label>
-          <input class="form-input" type="text" value="Smart Meeting Room & Managed Connectivity">
+          <input class="form-input" type="text" id="projectName" value="Smart Meeting Room & Managed Connectivity">
         </div>
         <div class="form-group">
           <label class="form-label">Type of Project <span class="required">*</span></label>
@@ -697,7 +708,7 @@
                  background:var(--warning-light); color:var(--warning-dark);
                  border:1px solid var(--warning); border-radius:999px; cursor:pointer;">
           <i class="ti ti-currency-dollar" style="font-size:13px;"></i>
-          Exchange Rate &nbsp;·&nbsp; USD 33.5 · CNY 5.0
+          Exchange Rate &nbsp;·&nbsp; <span id="fxBtnRates">USD 33.50 · CNY 5.00</span>
           <i class="ti ti-chevron-down" id="fxChevron" style="font-size:13px; transition:transform 0.2s;"></i>
         </button>
       </div>
@@ -706,21 +717,21 @@
         <div class="banner banner-warning">
           <i class="ti ti-currency-dollar"></i>
           <div style="flex:1;">
-            <div style="font-weight:500; font-size:13px;">ใช้อัตราแลกเปลี่ยน ณ วันที่ <b>18 พฤษภาคม 2026</b></div>
-            <div style="font-size:11px; margin-top:2px;">ตามประกาศฝ่ายการเงิน รอบ 1 พ.ค. 2026 – 31 ธ.ค. 2030</div>
+            <div style="font-weight:500; font-size:13px;">ใช้อัตราแลกเปลี่ยน ณ วันที่ <b>18/05/2026</b></div>
+            <div style="font-size:11px; margin-top:2px;">ตามประกาศฝ่ายการเงิน รอบ 01/05/2026 – 31/12/2030</div>
           </div>
         </div>
 
         <div class="form-grid">
           <div class="form-group">
             <label class="form-label">USD / THB <span style="color:var(--text-tertiary);">(locked by date)</span></label>
-            <input class="form-input" type="number" value="33.5" step="0.1" readonly style="background:var(--bg-secondary);">
-            <div class="field-hint">อ้างอิงประกาศ ฝ่ายการเงิน effective 2026-05-01</div>
+            <input class="form-input" type="number" id="fxUsdInput" value="33.5" step="0.1" readonly style="background:var(--bg-secondary);">
+            <div class="field-hint">อ้างอิงประกาศ ฝ่ายการเงิน effective 01/05/2026</div>
           </div>
           <div class="form-group">
             <label class="form-label">CNY / THB <span style="color:var(--text-tertiary);">(locked by date)</span></label>
-            <input class="form-input" type="number" value="5.0" step="0.1" readonly style="background:var(--bg-secondary);">
-            <div class="field-hint">อ้างอิงประกาศ ฝ่ายการเงิน effective 2026-05-01</div>
+            <input class="form-input" type="number" id="fxCnyInput" value="5.0" step="0.1" readonly style="background:var(--bg-secondary);">
+            <div class="field-hint">อ้างอิงประกาศ ฝ่ายการเงิน effective 01/05/2026</div>
           </div>
         </div>
 
@@ -796,7 +807,7 @@
         </div>
         <div class="form-group" style="flex:1.5; min-width:130px;">
           <label class="form-label">วันสิ้นสุดสัญญา</label>
-          <input class="form-input" type="text" id="contractEndDate" value="31 May 2029" readonly
+          <input class="form-input" type="text" id="contractEndDate" value="31/05/2029" readonly
                  style="background:var(--bg-secondary); color:var(--text-secondary);">
         </div>
       </div>
@@ -857,57 +868,57 @@
       </button>
       <div id="ohDetail" style="display:none; margin-top:10px;">
         <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px;">
-          <label style="display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--bg-secondary); border-radius:var(--radius-md); cursor:pointer;" onclick="setOhLabel('ซื้อมาขายไป 3%')">
-            <input type="radio" name="overhead">
+          <label class="oh-card" style="display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--bg-secondary); border-radius:var(--radius-md); cursor:pointer;">
+            <input type="radio" name="overhead" id="oh-trade" value="3" data-label="ซื้อมาขายไป 3%">
             <div>
               <div style="font-size:11px; font-weight:500;">ซื้อมาขายไป</div>
               <div style="font-size:10px; color:var(--text-secondary);">3%</div>
             </div>
           </label>
-          <label style="display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--info-light); border:2px solid var(--info); border-radius:var(--radius-md); cursor:pointer;" onclick="setOhLabel('โครงการปกติ 5%')">
-            <input type="radio" name="overhead" checked>
+          <label class="oh-card" style="display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--info-light); border:2px solid var(--info); border-radius:var(--radius-md); cursor:pointer;">
+            <input type="radio" name="overhead" id="oh-normal" value="5" data-label="โครงการปกติ 5%" checked>
             <div>
               <div style="font-size:11px; font-weight:500; color:var(--info-dark);">โครงการปกติ ⭐</div>
               <div style="font-size:10px; color:var(--info);">5%</div>
             </div>
           </label>
-          <label style="display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--bg-secondary); border-radius:var(--radius-md); cursor:pointer;" onclick="setOhLabel('โครงการใหญ่ 7%')">
-            <input type="radio" name="overhead">
+          <label class="oh-card" style="display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--bg-secondary); border-radius:var(--radius-md); cursor:pointer;">
+            <input type="radio" name="overhead" id="oh-large" value="7" data-label="โครงการใหญ่ 7%">
             <div>
               <div style="font-size:11px; font-weight:500;">โครงการใหญ่</div>
               <div style="font-size:10px; color:var(--text-secondary);">7%</div>
             </div>
           </label>
-          <label style="display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--bg-secondary); border-radius:var(--radius-md); cursor:pointer;" onclick="setOhLabel('โครงการพิเศษ 9%')">
-            <input type="radio" name="overhead">
+          <label class="oh-card" style="display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--bg-secondary); border-radius:var(--radius-md); cursor:pointer;">
+            <input type="radio" name="overhead" id="oh-special" value="9" data-label="โครงการพิเศษ 9%">
             <div>
               <div style="font-size:11px; font-weight:500;">โครงการพิเศษ</div>
               <div style="font-size:10px; color:var(--text-secondary);">9%</div>
             </div>
           </label>
-          <label style="display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--bg-secondary); border-radius:var(--radius-md); cursor:pointer;" onclick="setOhLabel('บริการ Zoom 5%')">
-            <input type="radio" name="overhead">
+          <label class="oh-card" style="display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--bg-secondary); border-radius:var(--radius-md); cursor:pointer;">
+            <input type="radio" name="overhead" id="oh-zoom" value="5" data-label="บริการ Zoom 5%">
             <div>
               <div style="font-size:11px; font-weight:500;">บริการ Zoom</div>
               <div style="font-size:10px; color:var(--text-secondary);">5%</div>
             </div>
           </label>
-          <label style="display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--bg-secondary); border-radius:var(--radius-md); cursor:pointer;" onclick="setOhLabel('บริการ Internet 5%')">
-            <input type="radio" name="overhead">
+          <label class="oh-card" style="display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--bg-secondary); border-radius:var(--radius-md); cursor:pointer;">
+            <input type="radio" name="overhead" id="oh-internet" value="5" data-label="บริการ Internet 5%">
             <div>
               <div style="font-size:11px; font-weight:500;">บริการ Internet</div>
               <div style="font-size:10px; color:var(--text-secondary);">5%</div>
             </div>
           </label>
-          <label style="display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--bg-secondary); border-radius:var(--radius-md); cursor:pointer;" onclick="setOhLabel('บริการ Cloud 5%')">
-            <input type="radio" name="overhead">
+          <label class="oh-card" style="display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--bg-secondary); border-radius:var(--radius-md); cursor:pointer;">
+            <input type="radio" name="overhead" id="oh-cloud" value="5" data-label="บริการ Cloud 5%">
             <div>
               <div style="font-size:11px; font-weight:500;">บริการ Cloud</div>
               <div style="font-size:10px; color:var(--text-secondary);">5%</div>
             </div>
           </label>
-          <label style="display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--bg-secondary); border-radius:var(--radius-md); cursor:pointer;" onclick="setOhLabel('โครงการซับซ้อน 15%')">
-            <input type="radio" name="overhead">
+          <label class="oh-card" style="display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--bg-secondary); border-radius:var(--radius-md); cursor:pointer;">
+            <input type="radio" name="overhead" id="oh-complex" value="15" data-label="โครงการซับซ้อน 15%">
             <div>
               <div style="font-size:11px; font-weight:500; color:var(--danger);">โครงการซับซ้อน</div>
               <div style="font-size:10px; color:var(--danger);">15%</div>
@@ -1022,7 +1033,7 @@
             <div></div>
             <div></div>
             <div style="color: var(--text-secondary); font-size: 11px;">Subtotal — Investment (OTC)</div>
-            <div class="right" style="font-size: 11px; color: var(--text-secondary);" id="subtotal-units">0 units</div>
+            <div class="right" style="font-size: 11px; color: var(--text-secondary); white-space: nowrap;" id="subtotal-units">0 units</div>
             <div></div>
             <div class="right" id="subtotal-cost">฿0</div>
             <div></div>
@@ -1042,21 +1053,23 @@
       <div class="kpi-grid">
         <div class="kpi-card">
           <div class="kpi-label">Fixed costs (5 items)</div>
-          <div class="kpi-value">฿188,500</div>
+          <div class="kpi-value" id="opr-fixed-total">฿0</div>
+          <div class="kpi-sub">OPR-100001–100005</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Variable costs</div>
-          <div class="kpi-value" id="opr-variable-total">฿70,160</div>
+          <div class="kpi-value" id="opr-variable-total">฿0</div>
           <div class="kpi-sub">Auto-calc</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Entertainment + Overhead</div>
-          <div class="kpi-value">฿48,400</div>
+          <div class="kpi-value" id="opr-ent-oh-total">฿0</div>
+          <div class="kpi-sub">OPR-100012 + 100013</div>
         </div>
         <div class="kpi-card" style="background:var(--warning-light);">
           <div class="kpi-label" style="color:var(--warning-dark);">Total operation cost</div>
-          <div class="kpi-value" id="opr-total" style="color:var(--warning-dark);">฿307,060</div>
-          <div class="kpi-sub" style="color:var(--warning-dark);">46.0% of investment</div>
+          <div class="kpi-value" id="opr-total" style="color:var(--warning-dark);">฿0</div>
+          <div class="kpi-sub" style="color:var(--warning-dark);" id="opr-total-pct">—</div>
         </div>
       </div>
     </div>
@@ -1093,7 +1106,7 @@
           </div>
           <div></div><div></div>
           <div>
-            <input class="form-input" type="number" id="opr1-val" value="0"
+            <input class="form-input" type="text" id="opr1-val" value="0"
                    readonly style="text-align:right; padding:5px 8px; background:var(--bg-secondary); color:var(--success-dark); font-weight:500;">
           </div>
           <div>
@@ -1107,21 +1120,21 @@
           <div class="opr-code">OPR-100002</div>
           <div><div>ค่าขนส่งและเก็บรักษา</div><div style="font-size:10px;color:var(--text-tertiary);">Logistics & Warehouse</div></div>
           <div></div><div></div>
-          <div><input class="form-input" type="number" value="18500" style="text-align:right; padding:5px 8px;"></div>
+          <div><input class="form-input fmt-num" type="text" inputmode="decimal" id="opr2-val" value="18,500" style="text-align:right; padding:5px 8px;" oninput="updateOprTotal()"></div>
           <div></div>
         </div>
         <div class="opr-row">
           <div class="opr-code">OPR-100003</div>
           <div><div>ค่าฝึกอบรม</div><div style="font-size:10px;color:var(--text-tertiary);">Training documents & sessions</div></div>
           <div></div><div></div>
-          <div><input class="form-input" type="number" value="12000" style="text-align:right; padding:5px 8px;"></div>
+          <div><input class="form-input fmt-num" type="text" inputmode="decimal" id="opr3-val" value="12,000" style="text-align:right; padding:5px 8px;" oninput="updateOprTotal()"></div>
           <div></div>
         </div>
         <div class="opr-row">
           <div class="opr-code">OPR-100004</div>
           <div><div>Sale & Presale Management</div><div style="font-size:10px;color:var(--text-tertiary);">Acceptance & coordination</div></div>
           <div></div><div></div>
-          <div><input class="form-input" type="number" value="25000" style="text-align:right; padding:5px 8px;"></div>
+          <div><input class="form-input fmt-num" type="text" inputmode="decimal" id="opr4-val" value="25,000" style="text-align:right; padding:5px 8px;" oninput="updateOprTotal()"></div>
           <div></div>
         </div>
         <div class="opr-row" style="background:var(--success-light);">
@@ -1132,7 +1145,7 @@
           </div>
           <div></div><div></div>
           <div>
-            <input class="form-input" type="number" id="opr5-val" value="0"
+            <input class="form-input" type="text" id="opr5-val" value="0"
                    readonly style="text-align:right; padding:5px 8px; background:var(--bg-secondary); color:var(--success-dark); font-weight:500;">
           </div>
           <div>
@@ -1158,7 +1171,7 @@
           </div>
           <div></div>
           <div></div>
-          <div><input class="form-input" type="number" id="opr6-val" value="0" placeholder="0" style="text-align:right; padding:5px 8px;" oninput="updateOprTotal()"></div>
+          <div><input class="form-input fmt-num" type="text" inputmode="decimal" id="opr6-val" value="0" placeholder="0" style="text-align:right; padding:5px 8px;" oninput="updateOprTotal()"></div>
           <div style="font-size:10px; color:var(--text-secondary);">กรอกเอง</div>
         </div>
 
@@ -1203,7 +1216,7 @@
           <div id="opr8-lock">
             <span class="opr-role-badge locked">
               <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              COO+
+              Auto · Tab 2
             </span>
           </div>
         </div>
@@ -1226,28 +1239,28 @@
           <div id="opr9-lock">
             <span class="opr-role-badge locked">
               <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              COO+
+              Auto · Tab 2
             </span>
           </div>
         </div>
 
-        <!-- OPR-100010: การตลาด 1% fixed -->
+        <!-- OPR-100010: การตลาด — % ตาม serviceData ของ Service Type (Tab 1) -->
         <div class="opr-row">
           <div class="opr-code">OPR-100010</div>
           <div>
             <div>ค่าการตลาด</div>
-            <div style="font-size:10px; color:var(--text-tertiary);">Fixed 1% — ตาม Service Type</div>
+            <div style="font-size:10px; color:var(--text-tertiary);">% ตาม Service Type (master data)</div>
           </div>
           <div style="text-align:right; color:var(--text-secondary); font-size:11px;" class="opr-base-ref">฿668,000</div>
           <div class="pct-slider">
-            <input type="range" min="1" max="1" step="0" value="1" disabled style="opacity:0.4; cursor:not-allowed;">
-            <span class="pct-value">1.0%</span>
+            <input type="range" min="0" max="5" step="0.1" value="1" disabled style="opacity:0.4; cursor:not-allowed;" id="opr10-slider">
+            <span class="pct-value" id="opr10-pct">1.0%</span>
           </div>
-          <div class="opr-amount">฿6,680</div>
+          <div class="opr-amount" id="opr10-amount">฿6,680</div>
           <div>
             <span class="opr-role-badge locked" style="background:#F1EFE8; color:var(--text-secondary); border-color:var(--border);">
               <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              Fixed
+              Auto
             </span>
           </div>
         </div>
@@ -1282,21 +1295,21 @@
           <div class="opr-code">OPR-100012</div>
           <div><div>ค่าเลี้ยงรับรอง/ของขวัญ</div><div style="font-size:10px;color:var(--text-tertiary);">ตามเหมาะสม</div></div>
           <div></div><div></div>
-          <div><input class="form-input" type="number" value="15000" style="text-align:right; padding:5px 8px;"></div>
+          <div><input class="form-input fmt-num" type="text" inputmode="decimal" id="opr12-val" value="15,000" style="text-align:right; padding:5px 8px;" oninput="updateOprTotal()"></div>
           <div></div>
         </div>
         <div class="opr-row" style="background:var(--info-light);">
           <div class="opr-code" style="color:var(--info-dark);">OPR-100013</div>
           <div>
             <div style="color:var(--info-dark);">Overhead cost</div>
-            <div style="font-size:10px; color:var(--info);">5% — locked by Tab 2 (โครงการปกติ)</div>
+            <div style="font-size:10px; color:var(--info);" id="opr13-desc">5% — locked by Tab 2 (โครงการปกติ 5%)</div>
           </div>
           <div style="text-align:right; color:var(--info); font-size:11px;" class="opr-base-ref">฿668,000</div>
           <div class="pct-slider">
-            <input type="range" min="0" max="15" step="0.5" value="5" disabled style="opacity:0.5;">
-            <span class="pct-value" style="color:var(--info);">5.0%</span>
+            <input type="range" min="0" max="15" step="0.5" value="5" disabled style="opacity:0.5;" id="opr13-slider">
+            <span class="pct-value" style="color:var(--info);" id="opr13-pct">5.0%</span>
           </div>
-          <div class="opr-amount" style="color:var(--info-dark);">฿33,400</div>
+          <div class="opr-amount" style="color:var(--info-dark);" id="opr13-amount">฿33,400</div>
           <div>
             <span class="opr-role-badge locked" style="background:var(--info-light); color:var(--info); border-color:var(--info);">
               <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -1317,7 +1330,7 @@
       <div class="kpi-grid">
         <div class="kpi-card">
           <div class="kpi-label">MRC / month</div>
-          <div class="kpi-value">฿112,440</div>
+          <div class="kpi-value" id="kpi-mrc-month">฿0</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Nominal total</div>
@@ -1325,7 +1338,7 @@
           <div class="kpi-sub" id="paid-months">36 months</div>
         </div>
         <div class="kpi-card" style="background:var(--primary); color:white;">
-          <div class="kpi-label" style="color:rgba(255,255,255,0.85);">NPV @ 6%</div>
+          <div class="kpi-label" style="color:rgba(255,255,255,0.85);" id="npv-card-label">NPV @ 6%</div>
           <div class="kpi-value" id="npv-value" style="color:white;">฿3.72M</div>
           <div class="kpi-sub" style="color:rgba(255,255,255,0.85);">
             <i class="ti ti-arrow-down" style="font-size:11px;"></i>
@@ -1436,7 +1449,7 @@
           <div class="data-row" style="background:white; font-weight:500; border-top:2px solid var(--border-strong);">
             <div></div><div></div><div></div>
             <div style="color:var(--text-secondary); font-size:11px;">Subtotal — MRC</div>
-            <div class="right" style="font-size:11px; color:var(--text-secondary);" id="mrc-subtotal-units">0 units</div>
+            <div class="right" style="font-size:11px; color:var(--text-secondary); white-space:nowrap;" id="mrc-subtotal-units">0 units</div>
             <div></div>
             <div class="right" id="mrc-subtotal-cost">฿0</div>
             <div></div>
@@ -1539,7 +1552,7 @@
             <div></div>
             <div></div>
             <div style="color: var(--text-secondary); font-size: 11px;">Subtotal — Installation</div>
-            <div class="right" style="font-size: 11px; color: var(--text-secondary);" id="install-subtotal-units">0 units</div>
+            <div class="right" style="font-size: 11px; color: var(--text-secondary); white-space: nowrap;" id="install-subtotal-units">0 units</div>
             <div></div>
             <div class="right" id="install-subtotal-total">฿0</div>
             <div class="item-meta">→ feeds OPR-100001</div>
@@ -1594,7 +1607,7 @@
             <div></div>
             <div></div>
             <div style="color: var(--text-secondary); font-size: 11px;">Subtotal — PMCM</div>
-            <div class="right" style="font-size: 11px; color: var(--text-secondary);" id="pmcm-subtotal-units">0 units</div>
+            <div class="right" style="font-size: 11px; color: var(--text-secondary); white-space: nowrap;" id="pmcm-subtotal-units">0 units</div>
             <div></div>
             <div class="right" id="pmcm-subtotal-total">฿0</div>
             <div class="item-meta">→ feeds OPR-100005</div>
@@ -1627,14 +1640,14 @@
           <div class="kpi-sub" id="summary-gross-margin" style="color: var(--success);">17.4% margin</div>
         </div>
         <div class="kpi-card accent-blue">
-          <div class="kpi-label">Net profit (NPV @ 6%)</div>
+          <div class="kpi-label" id="summary-net-profit-label">Net profit (NPV @ 6%)</div>
           <div class="kpi-value" id="summary-net-profit" style="color: var(--info-dark);">฿559,950</div>
           <div class="kpi-sub" id="summary-net-margin" style="color: var(--info);">13.3% net margin</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">ระยะสัญญา</div>
           <div class="kpi-value" id="summary-contract-term">36 mo.</div>
-          <div class="kpi-sub" id="summary-contract-dates" style="color:var(--text-tertiary);">Jun 2026 – May 2029</div>
+          <div class="kpi-sub" id="summary-contract-dates" style="color:var(--text-tertiary);">01/06/2026 – 31/05/2029</div>
         </div>
       </div><!-- /kpi-grid -->
     </div><!-- /section -->
@@ -1874,7 +1887,7 @@
             <div class="comment-header">
               <span style="font-size: 12px; font-weight: 500; color: var(--success-dark);">Woraphat L.</span>
               <span class="badge badge-success">SA Manager · approved</span>
-              <span style="font-size: 10px; color: var(--success); margin-left: auto;">12 May, 14:32</span>
+              <span style="font-size: 10px; color: var(--success); margin-left: auto;">12/05/2026 14:32</span>
             </div>
             <div style="font-size: 12px; color: var(--success-dark);">Technical scope ผ่านครับ — Fortinet config + 5G backup link design ดีครับ</div>
           </div>
@@ -1888,7 +1901,7 @@
             <div class="comment-header">
               <span style="font-size: 12px; font-weight: 500; color: var(--primary-dark);">AI Assistant</span>
               <span class="badge badge-primary" style="background: var(--primary); color: white;">routing analysis</span>
-              <span style="font-size: 10px; color: var(--primary-dark); margin-left: auto;">13 May, 10:21</span>
+              <span style="font-size: 10px; color: var(--primary-dark); margin-left: auto;">13/05/2026 10:21</span>
             </div>
             <div style="font-size: 12px; color: var(--primary-dark);" id="aiRoutingExplain">
               <b>เคสนี้ต้องผ่าน CEO เพราะ:</b><br>
@@ -2026,7 +2039,7 @@
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
             <div class="form-group">
               <label class="form-label">ส่วนลด (Discount) บาท</label>
-              <input class="form-input" type="number" id="convertDiscount" value="0" min="0">
+              <input class="form-input fmt-num" type="text" inputmode="decimal" id="convertDiscount" value="0">
             </div>
             <div class="form-group">
               <label class="form-label">รหัสลูกค้า (Customer ID)</label>
@@ -2133,8 +2146,8 @@
   };
 
   function onServiceChange() {
-    // Re-evaluate approval thresholds for the newly selected service group
-    if (typeof recalcSummary === 'function') recalcSummary();
+    // Marketing % (OPR-100010) + approval thresholds เปลี่ยนตาม service → คำนวณใหม่ทั้งสาย
+    if (typeof recalcAll === 'function') recalcAll();
   }
   function onSaleGroupChange() {
     const grp = document.getElementById('saleGroup').value;
@@ -2215,7 +2228,10 @@
     const canEdit = ADMIN_ROLES.includes(role);
     const notice = document.getElementById('roleLockNotice');
     const noticeText = document.getElementById('roleLockText');
-    ['7','8','9'].forEach(n => {
+    // เฉพาะ OPR-100007 (ดอกเบี้ย) เท่านั้นที่ COO/CEO แก้ slider ได้
+    // OPR-100008/100009 (Bid/Performance Bond) คำนวณอัตโนมัติจาก checkbox Tab 2 เสมอ
+    // (เดิมปลดล็อกให้เลื่อนได้ แต่ updateOprTotal คำนวณทับจาก Tab 2 อยู่ดี — ทำให้เข้าใจผิด)
+    ['7'].forEach(n => {
       const slider = document.getElementById(`opr${n}-slider`);
       const lockDiv = document.getElementById(`opr${n}-lock`);
       if (slider) {
@@ -2232,16 +2248,16 @@
     if (notice && noticeText) {
       if (!canEdit) {
         notice.style.display = 'flex';
-        noticeText.textContent = `สิทธิ์ "${ROLE_LABELS[role]}" — ดูได้อย่างเดียว · ค่าดอกเบี้ย, Bid Bond, Performance Bond แก้ได้เฉพาะ C-Level (COO) / CEO`;
+        noticeText.textContent = `สิทธิ์ "${ROLE_LABELS[role]}" — ดูได้อย่างเดียว · ค่าดอกเบี้ยแก้ได้เฉพาะ C-Level (COO)/CEO · Bid Bond/Performance Bond กำหนดจากตัวเลือกใน Tab 2`;
       } else {
         notice.style.display = 'none';
       }
     }
   }
 
-  // Slider events for opr7/8/9
+  // Slider events for opr7 (opr8/9 ปิดถาวร — auto จาก Tab 2)
   document.addEventListener('input', function(e) {
-    if (['opr7-slider','opr8-slider','opr9-slider'].includes(e.target.id)) {
+    if (e.target.id === 'opr7-slider') {
       const base = getOprBase();
       const pct = parseFloat(e.target.value);
       const n = e.target.id.replace('opr','').replace('-slider','');
@@ -2270,10 +2286,16 @@
         amt.textContent = '฿' + v.toLocaleString();
       }
     });
-    const opr1 = parseFloat(document.getElementById('opr1-val')?.value) || 0;
-    const opr5 = parseFloat(document.getElementById('opr5-val')?.value) || 0;
-    const spare = parseFloat(document.getElementById('opr6-val')?.value) || 0;
-    const pct7 = parseFloat(document.getElementById('opr7-slider')?.value) || 1;
+    // parseNum รองรับค่าที่มี comma (input เป็น text เพื่อแสดง comma ได้)
+    const opr1 = parseNum(document.getElementById('opr1-val')?.value);
+    const opr2 = parseNum(document.getElementById('opr2-val')?.value);
+    const opr3 = parseNum(document.getElementById('opr3-val')?.value);
+    const opr4 = parseNum(document.getElementById('opr4-val')?.value);
+    const opr5 = parseNum(document.getElementById('opr5-val')?.value);
+    const opr12 = parseNum(document.getElementById('opr12-val')?.value);
+    const spare = parseNum(document.getElementById('opr6-val')?.value);
+    const pct7raw = parseFloat(document.getElementById('opr7-slider')?.value);
+    const pct7 = isNaN(pct7raw) ? 1 : pct7raw; // อนุญาต 0% (เดิม `|| 1` ทำให้ตั้ง 0 ไม่ได้)
 
     // Bid Bond: only if checked in Tab 2 + month × 1%
     const bidChecked = document.getElementById('chkBidBond')?.checked || false;
@@ -2317,41 +2339,39 @@
     }
     if (opr11Slider) opr11Slider.value = licChecked ? 2 : 0;
 
-    // Fixed: marketing 1%
-    const variable = spare + Math.round(base * (pct7 + pct8 + pct9 + 1 + pctLic + 5) / 100);
-    const varEl = document.getElementById('opr-variable-total');
-    if (varEl) varEl.textContent = '฿' + Math.round(variable).toLocaleString();
-    const totalEl = document.getElementById('opr-total');
-    const oprTotalNum = Math.round(opr1 + opr5 + 18500 + 12000 + 25000 + variable + 15000);
-    if (totalEl) totalEl.textContent = '฿' + oprTotalNum.toLocaleString();
+    // OPR-100013: Overhead % — driven by Tab 2 selection (Excel: 0) Reference OH column)
+    const ohPct = (typeof getOverheadPct === 'function') ? getOverheadPct() : 5;
+    if (typeof syncOverheadUI === 'function') syncOverheadUI(base, ohPct);
+
+    // OPR-100010: Marketing % — ตาม serviceData ของ Service Type (Excel: rate.mkt) ไม่ hardcode 1%
+    const svcVal = document.getElementById('serviceType')?.value;
+    const mktPct = (((typeof serviceData !== 'undefined' && serviceData[svcVal]) ? serviceData[svcVal].mkt : 0.01)) * 100;
+    const opr10Slider = document.getElementById('opr10-slider');
+    const opr10Pct = document.getElementById('opr10-pct');
+    const opr10Amt = document.getElementById('opr10-amount');
+    if (opr10Slider) opr10Slider.value = mktPct;
+    if (opr10Pct) opr10Pct.textContent = mktPct.toFixed(1) + '%';
+    if (opr10Amt) opr10Amt.textContent = '฿' + Math.round(base * mktPct / 100).toLocaleString();
+
+    // ---- KPI groups (ตรงกับการ์ด Tab 4) ----
+    const fixedTotal = opr1 + opr2 + opr3 + opr4 + opr5;                                    // OPR-100001..005
+    const variable = spare + Math.round(base * (pct7 + pct8 + pct9 + mktPct + pctLic) / 100); // OPR-100006..011
+    const entOh = opr12 + Math.round(base * ohPct / 100);                                     // OPR-100012..013
+    const oprTotalNum = Math.round(fixedTotal + variable + entOh);
+
+    const setKpi = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    setKpi('opr-fixed-total', '฿' + Math.round(fixedTotal).toLocaleString());
+    setKpi('opr-variable-total', '฿' + Math.round(variable).toLocaleString());
+    setKpi('opr-ent-oh-total', '฿' + Math.round(entOh).toLocaleString());
+    setKpi('opr-total', '฿' + oprTotalNum.toLocaleString());
+    setKpi('opr-total-pct', base > 0 ? (oprTotalNum / base * 100).toFixed(1) + '% of investment base' : '—');
     window.__oprTotal = oprTotalNum;
     if (typeof recalcSummary === 'function') recalcSummary();
   }
 
   // ===== NPV =====
-  function recalcNPV() {
-    const term = parseInt(document.getElementById('contract-term').value);
-    const rate = parseFloat(document.getElementById('discount-rate').value);
-    const free = parseInt(document.getElementById('free-period').value);
-    const mrc = (typeof getMrcMonthly === 'function' ? getMrcMonthly().sale : 0) || 112440;
-    const monthlyRate = rate / 100 / 12;
-    const paidMonths = term - free;
-    const nominal = mrc * paidMonths;
-    let npv = 0;
-    for (let t = free + 1; t <= term; t++) npv += mrc / Math.pow(1 + monthlyRate, t);
-    document.getElementById('contract-term-val').textContent = term + ' mo';
-    document.getElementById('discount-rate-val').textContent = rate.toFixed(1) + '%';
-    document.getElementById('free-period-val').textContent = free + ' mo';
-    document.getElementById('nominal-total').textContent = '฿' + (nominal/1e6).toFixed(2) + 'M';
-    document.getElementById('paid-months').textContent = paidMonths + ' paid months';
-    document.getElementById('npv-value').textContent = '฿' + (npv/1e6).toFixed(2) + 'M';
-    document.getElementById('npv-diff').textContent = '฿' + Math.round((nominal-npv)/1000) + 'K';
-    if (window.cashflowChartInstance) renderCashflowChart();
-  }
-  ['contract-term', 'discount-rate', 'free-period'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('input', recalcNPV);
-  });
+  // recalcNPV ถูกประกาศไว้ที่เดียวในส่วน "NPV: role lock + badge sync" ด้านล่าง
+  // (เดิมมีประกาศซ้ำ 2 ตัว — ตัวเก่าคำนวณ nominal จาก paid months ซึ่งไม่ตรง ถูกลบออกแล้ว)
 
   // ===== Auto-save =====
   let saveTime = Date.now();
@@ -2376,12 +2396,24 @@
       saveTime = Date.now();
       if (typeof markDirty === 'function') markDirty();
     }
+    // input.fmt-num: จัดรูปแบบ comma ใหม่หลังผู้ใช้แก้ค่าเสร็จ (blur)
+    if (e.target.classList && e.target.classList.contains('fmt-num')) {
+      e.target.value = fmtNum(parseNum(e.target.value));
+    }
   });
 
-  // ===== Save Button — Cookie Persistence & Dirty State =====
+  // ===== Save / Load — localStorage Persistence & Dirty State =====
   let isDirty = false;
 
+  // Debounced auto-save: any edit triggers a real doSave() 3s after the last change
+  let autoSaveTimer = null;
+  function scheduleAutoSave() {
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(() => { if (isDirty) doSave(); }, 3000);
+  }
+
   function markDirty() {
+    scheduleAutoSave();
     if (isDirty) return;
     isDirty = true;
     const btn = document.getElementById('btnSave');
@@ -2395,23 +2427,43 @@
   }
 
   function doSave() {
-    // Collect all form values
-    const formData = {};
+    // 1) Form fields ที่มี id (checkbox/select/text/number)
+    const fields = {};
     document.querySelectorAll('input, select, textarea').forEach(el => {
-      if (!el.id && !el.name) return;
-      const key = el.id || el.name;
+      if (!el.id) return;
       if (el.type === 'checkbox' || el.type === 'radio') {
-        formData[key] = el.checked;
+        fields[el.id] = el.checked;
       } else {
-        formData[key] = el.value;
+        fields[el.id] = el.value;
       }
     });
 
-    // Save to cookie (use localStorage as fallback for large data)
+    // 2) Dynamic table state — single source of truth arrays ของทุก tab
+    const state = {
+      version: 2,
+      savedAt: new Date().toISOString(),
+      fields,
+      investmentRows,
+      mrcRows: mrcManager.state.rows,
+      installRows: installManager.state.rows,
+      pmcmRows: pmcmManager.state.rows,
+      serviceLines,
+      fxRows,
+      quotations,
+      counters: {
+        rowIdCounter,
+        mrc: mrcManager.state.counter,
+        install: installManager.state.counter,
+        pmcm: pmcmManager.state.counter,
+        serviceLineIdCounter,
+        fxIdCounter,
+        qtIdCounter
+      }
+    };
+
     try {
-      const json = JSON.stringify(formData);
-      localStorage.setItem('est_form_draft', json);
-      localStorage.setItem('est_form_draft_ts', new Date().toISOString());
+      localStorage.setItem('est_form_draft', JSON.stringify(state));
+      localStorage.setItem('est_form_draft_ts', state.savedAt);
     } catch (e) {
       console.warn('Save failed:', e);
     }
@@ -2430,6 +2482,65 @@
     saveTime = Date.now();
   }
 
+  // Restore saved draft (เรียกครั้งเดียวตอน init หลังตารางทุกตัวพร้อม)
+  function loadAppState() {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem('est_form_draft') || 'null'); } catch (e) { return false; }
+    if (!saved || typeof saved !== 'object') return false;
+
+    // Legacy shape (v1 = flat formData) → restore ได้เฉพาะ fields
+    const fields = saved.version >= 2 ? saved.fields : saved;
+    if (fields && typeof fields === 'object') {
+      Object.keys(fields).forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (el.type === 'checkbox' || el.type === 'radio') el.checked = !!fields[id];
+        else el.value = fields[id];
+      });
+    }
+    if (saved.version < 2) return true;
+
+    const maxId = rows => rows.reduce((m, r) => Math.max(m, r.id || 0), 0);
+    const cnt = saved.counters || {};
+
+    if (Array.isArray(saved.investmentRows)) {
+      investmentRows = saved.investmentRows;
+      rowIdCounter = cnt.rowIdCounter || maxId(investmentRows);
+      renderInvestmentRows();
+    }
+    if (Array.isArray(saved.mrcRows)) {
+      mrcManager.state.rows = saved.mrcRows;
+      mrcManager.state.counter = cnt.mrc || maxId(saved.mrcRows);
+      mrcManager.render();
+    }
+    if (Array.isArray(saved.installRows)) {
+      installManager.state.rows = saved.installRows;
+      installManager.state.counter = cnt.install || maxId(saved.installRows);
+      installManager.render();
+    }
+    if (Array.isArray(saved.pmcmRows)) {
+      pmcmManager.state.rows = saved.pmcmRows;
+      pmcmManager.state.counter = cnt.pmcm || maxId(saved.pmcmRows);
+      pmcmManager.render();
+    }
+    if (Array.isArray(saved.serviceLines)) {
+      serviceLines = saved.serviceLines;
+      serviceLineIdCounter = (cnt.serviceLineIdCounter || maxId(serviceLines)) + 1;
+      renderServiceLines();
+    }
+    if (Array.isArray(saved.fxRows) && saved.fxRows.length) {
+      fxRows = saved.fxRows;
+      fxIdCounter = (cnt.fxIdCounter || maxId(fxRows)) + 1;
+      fxRender();
+    }
+    if (Array.isArray(saved.quotations)) {
+      quotations = saved.quotations;
+      qtIdCounter = cnt.qtIdCounter || (quotations.length + 1);
+      renderQuotationList();
+    }
+    return true;
+  }
+
   // ===== Charts =====
   function renderCashflowChart() {
     const canvas = document.getElementById('cashflowChart');
@@ -2438,7 +2549,7 @@
     const term = parseInt(document.getElementById('contract-term').value);
     const rate = parseFloat(document.getElementById('discount-rate').value);
     const free = parseInt(document.getElementById('free-period').value);
-    const mrc = (typeof getMrcMonthly === 'function' ? getMrcMonthly().sale : 0) || 112440;
+    const mrc = (typeof getMrcMonthly === 'function' ? getMrcMonthly().sale : 0); // ค่าจริงจากตาราง MRC
     const monthlyRate = rate / 100 / 12;
     const labels = [], data = [];
     for (let t = 1; t <= term; t++) {
@@ -2499,7 +2610,8 @@
     const months = Array.from({length: 37}, (_, i) => i);
     const _inv = (typeof getInvestmentTotals === 'function') ? getInvestmentTotals() : {sale:942800, cost:1027758};
     const _mrc = (typeof getMrcMonthly === 'function') ? getMrcMonthly() : {sale:112440, cost:83660};
-    const _otc = ((typeof window.__oprTotal === 'number') ? window.__oprTotal : 0) + ((typeof getInstallPmcmCost === 'function') ? getInstallPmcmCost() : 0);
+    // Install/PMCM รวมอยู่ใน __oprTotal แล้ว (OPR-100001/100005) — ไม่บวกซ้ำ
+    const _otc = (typeof window.__oprTotal === 'number') ? window.__oprTotal : 0;
     const cumRev = months.map(m => _inv.sale + Math.max(0, m - 1) * _mrc.sale);
     const cumCost = months.map(m => m === 0 ? 0 : (_inv.cost + _otc) + Math.max(0, m - 1) * _mrc.cost);
     window.lifetimeInstance = new Chart(canvas, {
@@ -2591,6 +2703,25 @@
   function formatMoney(n) {
     if (!n || isNaN(n)) return '฿0';
     return '฿' + Math.round(n).toLocaleString();
+  }
+
+  // ตัวเลขมี comma ทุกจุด: fmtNum แสดงผล · parseNum อ่านค่า (ตัด comma ก่อน parse)
+  function fmtNum(n) {
+    const v = Number(n);
+    if (isNaN(v)) return '0';
+    return v.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  }
+  function parseNum(v) {
+    const n = parseFloat(String(v ?? '').replace(/,/g, ''));
+    return isNaN(n) ? 0 : n;
+  }
+
+  // รูปแบบวันที่มาตรฐานของแอป: DD/MM/YYYY (รับ Date object หรือ ISO string)
+  function fmtDateDMY(v) {
+    if (!v) return '';
+    const d = (v instanceof Date) ? v : new Date(v);
+    if (isNaN(d)) return String(v);
+    return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
   }
 
   function escapeHtml(s) {
@@ -2780,12 +2911,10 @@
   function updateRow(id, field, value) {
     const row = investmentRows.find(r => r.id === id);
     if (!row) return;
-    if (field === 'unit' || field === 'costPerUnit' || field === 'salePerUnit') {
-      row[field] = parseFloat(value) || 0;
-    } else {
-      row[field] = value;
-    }
-    renderInvestmentRows();
+    const isNumeric = field === 'unit' || field === 'costPerUnit' || field === 'salePerUnit';
+    row[field] = isNumeric ? parseNum(value) : value; // parseNum ตัด comma ก่อน
+    // field ข้อความไม่กระทบตัวเลข — ไม่ re-render เพื่อไม่ให้ focus หลุดตอนกด Tab
+    if (isNumeric) renderInvestmentRows();
   }
 
   function toggleInvestmentQuote(id) {
@@ -2854,16 +2983,16 @@
             ${isLowMargin ? '<div style="font-size:10px; color:var(--danger); padding:1px 4px;"><i class="ti ti-alert-triangle" style="font-size:10px;"></i> Margin &lt; 15%</div>' : ''}
           </div>
           <div class="right">
-            <input class="row-input" type="number" value="${row.unit}" min="0" step="1"
+            <input class="row-input" type="text" inputmode="decimal" value="${fmtNum(row.unit)}"
                    onchange="updateRow(${row.id}, 'unit', this.value)">
           </div>
           <div class="right">
-            <input class="row-input" type="number" value="${row.costPerUnit}" min="0" step="100"
+            <input class="row-input" type="text" inputmode="decimal" value="${fmtNum(row.costPerUnit)}"
                    onchange="updateRow(${row.id}, 'costPerUnit', this.value)">
           </div>
           <div class="right" style="font-weight: 500;">${formatMoney(totalCost)}</div>
           <div class="right">
-            <input class="row-input" type="number" value="${row.salePerUnit}" min="0" step="100"
+            <input class="row-input" type="text" inputmode="decimal" value="${fmtNum(row.salePerUnit)}"
                    onchange="updateRow(${row.id}, 'salePerUnit', this.value)">
           </div>
           <div class="right" style="font-weight: 500;">${formatMoney(totalSale)}</div>
@@ -2893,7 +3022,7 @@
       const el = document.getElementById(id);
       if (el) el.textContent = txt;
     };
-    setText('subtotal-units', totalUnits + ' units');
+    setText('subtotal-units', fmtNum(totalUnits) + ' units');
     setText('subtotal-cost', formatMoney(totalCost));
     setText('subtotal-sale', formatMoney(totalSale));
     setText('subtotal-profit', (profit >= 0 ? '+' : '') + formatMoney(profit));
@@ -2902,7 +3031,7 @@
     setText('kpi-total-sale', formatMoney(totalSale));
     setText('kpi-margin', margin.toFixed(1) + '%');
     setText('kpi-profit', (profit >= 0 ? '+' : '') + formatMoney(profit));
-    if (typeof updateOprTotal === 'function') updateOprTotal();
+    if (typeof recalcAll === 'function') recalcAll(); // investment เป็นฐานของ OPR % + Summary + NPV
   }
 
   // ===== Search Event Listeners =====
@@ -2989,12 +3118,10 @@
     function updateRow(id, field, value) {
       const row = state.rows.find(r => r.id === id);
       if (!row) return;
-      if (config.numericFields.includes(field)) {
-        row[field] = parseFloat(value) || 0;
-      } else {
-        row[field] = value;
-      }
-      render();
+      const isNumeric = config.numericFields.includes(field);
+      row[field] = isNumeric ? parseNum(value) : value; // parseNum ตัด comma ก่อน
+      // re-render เฉพาะเมื่อกระทบตัวเลข/สี (pic เปลี่ยนสี select) — กัน focus หลุดตอนพิมพ์ field ข้อความ
+      if (isNumeric || field === 'pic') render();
     }
 
     function handleDragStart(e, id) {
@@ -3122,6 +3249,16 @@
     return npv;
   }
 
+  // Live parameters for the MRC table (ตาม Global Contract Term + NPV sliders, ไม่ fix 36 เดือน)
+  function getMrcCalcParams() {
+    const term = (typeof getContractTermMonths === 'function') ? getContractTermMonths() : CONTRACT_TERM_DEFAULT;
+    const freeRaw = parseInt(document.getElementById('free-period')?.value);
+    const free = isNaN(freeRaw) ? FREE_PERIOD_DEFAULT : freeRaw;
+    const rateRaw = parseFloat(document.getElementById('discount-rate')?.value);
+    const rate = isNaN(rateRaw) ? NPV_DISCOUNT_RATE_DEFAULT : rateRaw / 100;
+    return { term, free, rate };
+  }
+
   const mrcManager = createRowManager({
     containerId: 'mrcRows',
     emptyStateId: 'mrcEmptyState',
@@ -3129,8 +3266,9 @@
     numericFields: ['unit', 'costPerMonth', 'salePerMonth'],
     emptyRow: { vendor: '', code: '', desc: '', unit: 1, costPerMonth: 0, salePerMonth: 0 },
     renderRow: (row, idx, isFirst, isLast) => {
-      const totalCost = row.unit * row.costPerMonth * (CONTRACT_TERM_DEFAULT - FREE_PERIOD_DEFAULT);
-      const npvSale = row.unit * calcNpvSale(row.salePerMonth, CONTRACT_TERM_DEFAULT, NPV_DISCOUNT_RATE_DEFAULT, FREE_PERIOD_DEFAULT);
+      const p = getMrcCalcParams();
+      const totalCost = row.unit * row.costPerMonth * (p.term - p.free);
+      const npvSale = row.unit * calcNpvSale(row.salePerMonth, p.term, p.rate, p.free);
       const profitPerMonth = (row.salePerMonth - row.costPerMonth) * row.unit;
       const profitPct = row.salePerMonth > 0 ? ((row.salePerMonth - row.costPerMonth) / row.salePerMonth * 100) : 0;
       const isLowMargin = profitPct < 15 && profitPct > 0;
@@ -3165,16 +3303,16 @@
             ${isLowMargin ? '<div style="font-size: 10px; color: var(--danger); padding: 2px 6px;"><i class="ti ti-alert-triangle" style="font-size: 11px;"></i> Margin < 15%</div>' : ''}
           </div>
           <div class="right">
-            <input class="row-input" type="number" value="${row.unit}" min="0" step="1"
+            <input class="row-input" type="text" inputmode="decimal" value="${fmtNum(row.unit)}"
                    onchange="mrcManager.updateRow(${row.id}, 'unit', this.value)">
           </div>
           <div class="right">
-            <input class="row-input" type="number" value="${row.costPerMonth}" min="0" step="100"
+            <input class="row-input" type="text" inputmode="decimal" value="${fmtNum(row.costPerMonth)}"
                    onchange="mrcManager.updateRow(${row.id}, 'costPerMonth', this.value)">
           </div>
           <div class="right" style="font-weight: 500;">${formatMoney(totalCost)}</div>
           <div class="right">
-            <input class="row-input" type="number" value="${row.salePerMonth}" min="0" step="100"
+            <input class="row-input" type="text" inputmode="decimal" value="${fmtNum(row.salePerMonth)}"
                    onchange="mrcManager.updateRow(${row.id}, 'salePerMonth', this.value)">
           </div>
           <div class="right" style="font-weight: 500;">${formatMoney(npvSale)}</div>
@@ -3190,19 +3328,19 @@
     },
     updateSubtotal: (rows) => {
       let units = 0, totalCost = 0, totalNpvSale = 0, profitPerMonth = 0;
+      const p = getMrcCalcParams();
       rows.forEach(r => {
         units += r.unit;
-        totalCost += r.unit * r.costPerMonth * (CONTRACT_TERM_DEFAULT - FREE_PERIOD_DEFAULT);
-        totalNpvSale += r.unit * calcNpvSale(r.salePerMonth, CONTRACT_TERM_DEFAULT, NPV_DISCOUNT_RATE_DEFAULT, FREE_PERIOD_DEFAULT);
+        totalCost += r.unit * r.costPerMonth * (p.term - p.free);
+        totalNpvSale += r.unit * calcNpvSale(r.salePerMonth, p.term, p.rate, p.free);
         profitPerMonth += (r.salePerMonth - r.costPerMonth) * r.unit;
       });
       const setText = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
-      setText('mrc-subtotal-units', units + ' units');
+      setText('mrc-subtotal-units', fmtNum(units) + ' units');
       setText('mrc-subtotal-cost', formatMoney(totalCost));
       setText('mrc-subtotal-npv-sale', formatMoney(totalNpvSale));
       setText('mrc-subtotal-profit', (profitPerMonth >= 0 ? '+' : '') + formatMoney(profitPerMonth) + '/mo');
-      if (typeof recalcNPV === 'function') recalcNPV();
-      if (typeof recalcSummary === 'function') recalcSummary();
+      if (typeof recalcAll === 'function') recalcAll();
     }
   });
 
@@ -3248,11 +3386,11 @@
                    style="font-size:10px; color:var(--text-tertiary);">
           </div>
           <div class="right">
-            <input class="row-input" type="number" value="${row.qty}" min="0" step="1"
+            <input class="row-input" type="text" inputmode="decimal" value="${fmtNum(row.qty)}"
                    onchange="installManager.updateRow(${row.id}, 'qty', this.value)">
           </div>
           <div class="right">
-            <input class="row-input" type="number" value="${row.unitPrice}" min="0" step="100"
+            <input class="row-input" type="text" inputmode="decimal" value="${fmtNum(row.unitPrice)}"
                    onchange="installManager.updateRow(${row.id}, 'unitPrice', this.value)">
           </div>
           <div class="right" style="font-weight:500;">${formatMoney(total)}</div>
@@ -3269,13 +3407,12 @@
       let units = 0, total = 0;
       rows.forEach(r => { units += (parseFloat(r.qty) || 0); total += (parseFloat(r.qty) || 0) * (parseFloat(r.unitPrice) || 0); });
       const setText = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
-      setText('install-subtotal-units', units + ' units');
+      setText('install-subtotal-units', fmtNum(units) + ' units');
       setText('install-subtotal-total', formatMoney(total));
       setText('kpi-install-cost', formatMoney(total));
       const opr1 = document.getElementById('opr1-val');
-      if (opr1) opr1.value = total;
-      if (typeof updateInstallPmcmKpi === 'function') updateInstallPmcmKpi();
-      if (typeof updateOprTotal === 'function') updateOprTotal();
+      if (opr1) opr1.value = fmtNum(total); // → OPR-100001 (แสดง comma)
+      if (typeof recalcAll === 'function') recalcAll();
     }
   });
 
@@ -3321,11 +3458,11 @@
                    style="font-size:10px; color:var(--text-tertiary);">
           </div>
           <div class="right">
-            <input class="row-input" type="number" value="${row.qty}" min="0" step="1"
+            <input class="row-input" type="text" inputmode="decimal" value="${fmtNum(row.qty)}"
                    onchange="pmcmManager.updateRow(${row.id}, 'qty', this.value)">
           </div>
           <div class="right">
-            <input class="row-input" type="number" value="${row.unitPrice}" min="0" step="100"
+            <input class="row-input" type="text" inputmode="decimal" value="${fmtNum(row.unitPrice)}"
                    onchange="pmcmManager.updateRow(${row.id}, 'unitPrice', this.value)">
           </div>
           <div class="right" style="font-weight:500;">${formatMoney(total)}</div>
@@ -3342,13 +3479,12 @@
       let units = 0, total = 0;
       rows.forEach(r => { units += (parseFloat(r.qty) || 0); total += (parseFloat(r.qty) || 0) * (parseFloat(r.unitPrice) || 0); });
       const setText = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
-      setText('pmcm-subtotal-units', units + ' units');
+      setText('pmcm-subtotal-units', fmtNum(units) + ' units');
       setText('pmcm-subtotal-total', formatMoney(total));
       setText('kpi-pmcm-cost', formatMoney(total));
       const opr5 = document.getElementById('opr5-val');
-      if (opr5) opr5.value = total;
-      if (typeof updateInstallPmcmKpi === 'function') updateInstallPmcmKpi();
-      if (typeof updateOprTotal === 'function') updateOprTotal();
+      if (opr5) opr5.value = fmtNum(total); // → OPR-100005 (แสดง comma)
+      if (typeof recalcAll === 'function') recalcAll();
     }
   });
 
@@ -3357,14 +3493,18 @@
   // ===== Combined Install + PMCM KPI =====
   function updateInstallPmcmKpi() {
     let installTotal = 0, pmcmTotal = 0;
-    installManager.state.rows.forEach(r => { installTotal += (parseFloat(r.qty)||0) * (parseFloat(r.unitPrice)||0); });
-    pmcmManager.state.rows.forEach(r => { pmcmTotal += (parseFloat(r.qty)||0) * (parseFloat(r.unitPrice)||0); });
+    // try/catch กัน TDZ: recalcAll อาจถูกเรียกระหว่าง load ก่อนบรรทัดประกาศ const installManager/pmcmManager
+    // (pattern เดียวกับ getMrcMonthly/getInstallPmcmCost) — ห้ามอ้างตรงโดยไม่ guard
+    try {
+      installManager.state.rows.forEach(r => { installTotal += (parseFloat(r.qty)||0) * (parseFloat(r.unitPrice)||0); });
+      pmcmManager.state.rows.forEach(r => { pmcmTotal += (parseFloat(r.qty)||0) * (parseFloat(r.unitPrice)||0); });
+    } catch (e) { return; /* managers not yet initialized during load */ }
     const combined = installTotal + pmcmTotal;
     const el = document.getElementById('kpi-install-pmcm-total');
     if (el) el.textContent = formatMoney(combined);
     const pctEl = document.getElementById('kpi-install-pmcm-pct');
     if (pctEl) pctEl.textContent = 'Install ' + formatMoney(installTotal) + ' + PMCM ' + formatMoney(pmcmTotal);
-    if (typeof recalcSummary === 'function') recalcSummary();
+    // ไม่เรียก recalcSummary เอง — เป็นขั้นตอนหนึ่งใน recalcAll() (updateOprTotal จะเรียกให้)
   }
 
   // ============================================================
@@ -3372,6 +3512,23 @@
   // Ties Tab 3 Investment + Tab 5 MRC + Tab 4 OPR + Tab 6 Install/PMCM
   // into Tab 7 Summary, then drives Tab 8 approval routing.
   // ============================================================
+
+  // ============================================================
+  // recalcAll() — จุดเข้าเดียวของ "ค่าคำนวณทั้งระบบ" (derived values)
+  // ลำดับขึ้นกับ dependency:
+  //   1. updateInstallPmcmKpi — KPI Tab 6 (Install/PMCM rows → opr1/opr5 ถูก set ใน updateSubtotal ก่อนแล้ว)
+  //   2. updateOprTotal       — Tab 4 ทั้งหมด + __oprTotal แล้วเรียก recalcSummary → Tab 1/7/8 + renderPipeline
+  //   3. recalcNPV            — KPI Tab 5 + cashflow chart
+  // กติกา: ฟังก์ชันที่ recalcAll เรียก ห้ามเรียก recalcAll หรือ manager.render() กลับ (กัน loop)
+  // Event แหล่งข้อมูล (แถวตาราง/Service/Contract term/radio) → เรียก recalcAll()
+  // Input ภายใน Tab 4 (opr*, checkbox bond) → เรียก updateOprTotal() ตรงๆ ได้ (ไม่กระทบ NPV)
+  // ============================================================
+  function recalcAll() {
+    if (typeof updateInstallPmcmKpi === 'function') updateInstallPmcmKpi();
+    if (typeof updateOprTotal === 'function') updateOprTotal();
+    if (typeof recalcNPV === 'function') recalcNPV();
+  }
+  window.recalcAll = recalcAll;
 
   // --- Source-of-truth readers ---
   function getInvestmentTotals() {
@@ -3411,16 +3568,27 @@
     return parseInt(document.getElementById('globalContractTerm')?.value) || 36;
   }
   // Classify selected service into approval threshold group.
-  // HIGH group (Director≥30 / C-Level≥20): AV, Zoom, Voice, Zound, Communication, UC, PABX
-  // LOW group  (Director≥15 / C-Level≥10): SI, Government, Connectivity, Cloud, Cyber, Networking, Internet
+  // Source of truth = serviceData (Excel '0) Reference': Appv.L1 → Director, Appv.L2 → C-Level).
+  // ตาม Excel: Data & Security ทุกตัวอยู่กลุ่ม HIGH (L1 0.30 / L2 0.20) เหมือน AV/Communication
   function getServiceGroup() {
     const sel = document.getElementById('serviceType');
+    const svc = sel ? serviceData[sel.value] : null;
+    if (svc) {
+      const isLow = svc.group === 'SI/Internet/Cloud';
+      return {
+        name: isLow ? 'SI / Internet / Cloud' : 'AV / Zoom / Voice / Communication',
+        dir: Math.round((svc.l1 ?? (isLow ? 0.15 : 0.30)) * 100),
+        clevel: Math.round((svc.l2 ?? (isLow ? 0.10 : 0.20)) * 100),
+        isLow
+      };
+    }
+    // Fallback (ยังไม่เลือก service / ไม่พบใน master data) — keyword heuristic
     const label = (sel && sel.selectedIndex >= 0 ? (sel.options[sel.selectedIndex].textContent + ' ' + sel.value) : '').toLowerCase();
-    const lowKeys = ['si', 'gov', 'connectivity', 'cloud', 'cyber', 'network', 'internet', 'data & security', 'data&security'];
+    const lowKeys = ['si ', 'si audio', 'si gov', 'si connectivity', 'gov', 'connectivity', 'internet'];
     const isLow = lowKeys.some(k => label.includes(k));
     return isLow
-      ? { name: 'SI / Internet / Cloud', dir: 15, clevel: 10 }
-      : { name: 'AV / Zoom / Voice / Communication', dir: 30, clevel: 20 };
+      ? { name: 'SI / Internet / Cloud', dir: 15, clevel: 10, isLow: true }
+      : { name: 'AV / Zoom / Voice / Communication', dir: 30, clevel: 20, isLow: false };
   }
   function approverFor(netMarginPct, group) {
     if (netMarginPct >= group.dir) return 'Director';
@@ -3432,22 +3600,27 @@
   function recalcSummary() {
     const inv = getInvestmentTotals();
     const mrc = getMrcMonthly();
-    const installPmcm = getInstallPmcmCost();
     const oprTotal = (typeof window.__oprTotal === 'number') ? window.__oprTotal : 0;
     const term = getContractTermMonths();
 
+    // NOTE: Install/PMCM รวมอยู่ใน oprTotal แล้ว (ผ่าน OPR-100001/OPR-100005
+    // ตาม Excel Summary: V47='1) Install'!E19, V51='2) PMCM'!E19) — ห้ามบวกซ้ำ
     // Nominal (revenue / cost over full term)
     const projectValue = inv.sale + mrc.sale * term;                 // ex-VAT
-    const totalCost    = inv.cost + mrc.cost * term + oprTotal + installPmcm;
+    const totalCost    = inv.cost + mrc.cost * term + oprTotal;
     const grossProfit  = projectValue - totalCost;
     const grossMargin  = projectValue > 0 ? (grossProfit / projectValue * 100) : 0;
 
-    // ASSUMPTION #3: Net profit = one-time net − one-time costs + NPV(monthly net @ 6%/yr)
+    // ASSUMPTION #3: Net profit = one-time net + NPV(monthly net)
+    // ใช้ discount rate + credit term จาก NPV Calculator (Tab 5) — ไม่ fix 6%
     const monthlyNet = mrc.sale - mrc.cost;
-    const monthlyRate = 0.06 / 12;
+    const discRaw = parseFloat(document.getElementById('discount-rate')?.value);
+    const discRatePct = isNaN(discRaw) ? 6 : discRaw;
+    const credit = parseInt(document.getElementById('free-period')?.value) || 0;
+    const monthlyRate = discRatePct / 100 / 12;
     let npvMonthly = 0;
-    for (let t = 1; t <= term; t++) npvMonthly += monthlyNet / Math.pow(1 + monthlyRate, t);
-    const netProfit = (inv.sale - inv.cost) - oprTotal - installPmcm + npvMonthly;
+    for (let t = credit + 1; t <= term; t++) npvMonthly += monthlyNet / Math.pow(1 + monthlyRate, t);
+    const netProfit = (inv.sale - inv.cost) - oprTotal + npvMonthly;
     const netMargin = projectValue > 0 ? (netProfit / projectValue * 100) : 0;
 
     const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
@@ -3458,9 +3631,10 @@
     setTxt('summary-gross-margin', grossMargin.toFixed(1) + '% margin');
     setTxt('summary-net-profit', (netProfit >= 0 ? '' : '-') + formatMoney(Math.abs(netProfit)));
     setTxt('summary-net-margin', netMargin.toFixed(1) + '% net margin');
+    setTxt('summary-net-profit-label', 'Net profit (NPV @ ' + discRatePct.toFixed(1) + '%)');
 
     // ---- Tab 1 header summary KPIs ----
-    const otc = inv.sale + oprTotal + installPmcm; // one-time charge (sell side)
+    const otc = inv.sale + oprTotal; // one-time charge (sell side) — install/PMCM อยู่ใน oprTotal แล้ว
     setTxt('kpi-otc-total', formatMoney(otc));
     setTxt('kpi-mrc-total', formatMoney(mrc.sale));
     setTxt('kpi-total-exvat', formatMoney(projectValue));
@@ -3483,7 +3657,7 @@
     const npCell = document.getElementById('matrixNPValue');
     if (npCell) npCell.textContent = netMargin.toFixed(1) + '% → ' + approver;
     // Highlight the active group row (row1=high AV group, row3=low SI group); row2 mirrors active
-    const isLow = group.dir === 15;
+    const isLow = !!group.isLow;
     const row1np = document.getElementById('matrixRow1NP');
     const row3np = document.getElementById('matrixRow3NP');
     if (row1np) row1np.textContent = isLow ? '—' : (netMargin.toFixed(1) + '%');
@@ -3504,7 +3678,7 @@
 
     const recurringRev = mrc.sale * term;
     const recurringPct = projectValue > 0 ? (recurringRev / projectValue * 100) : 0;
-    const oneTimeNet = inv.sale - inv.cost - oprTotal - installPmcm;
+    const oneTimeNet = inv.sale - inv.cost - oprTotal;
     const payback = oneTimeNet >= 0 ? 0 : (monthlyNet > 0 ? Math.ceil(-oneTimeNet / monthlyNet) : null);
     const paybackStr = payback === 0 ? 'คุ้มทุนทันที (one-time เป็นบวก)'
                       : payback === null ? 'N/A'
@@ -3764,7 +3938,7 @@
   // ===== NPV: role lock + badge sync + fix paid months =====
   function syncNpvRoleLock() {
     const role = currentUserRole || 'presale';
-    const canEdit = ['admin','clevel'].includes(role);
+    const canEdit = ADMIN_ROLES.includes(role); // clevel (COO) + ceo — เดิมเช็ค 'admin' ซึ่งไม่มีใน role model
     const slider = document.getElementById('discount-rate');
     const badge = document.getElementById('npv-rate-badge');
     const LOCK_S = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
@@ -3775,9 +3949,10 @@
 
   function recalcNPV() {
     const term = parseInt(document.getElementById('contract-term')?.value) || 36;
-    const rate = parseFloat(document.getElementById('discount-rate')?.value) || 6;
+    const rateRaw = parseFloat(document.getElementById('discount-rate')?.value);
+    const rate = isNaN(rateRaw) ? 6 : rateRaw; // อนุญาต 0% (เดิม `|| 6` ทำให้ตั้ง 0 ไม่ได้)
     const credit = parseInt(document.getElementById('free-period')?.value) || 0;
-    const mrc = (typeof getMrcMonthly === 'function' ? getMrcMonthly().sale : 0) || 112440;
+    const mrc = (typeof getMrcMonthly === 'function' ? getMrcMonthly().sale : 0); // ค่าจริง — ไม่ใช้ตัวเลขปลอม 112,440
     const monthlyRate = rate / 100 / 12;
     // Nominal = all term months (full contract)
     const nominal = mrc * term;
@@ -3787,6 +3962,8 @@
     const diff = nominal - npv;
 
     const setText = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+    setText('kpi-mrc-month', '฿' + Math.round(mrc).toLocaleString());
+    setText('npv-card-label', 'NPV @ ' + rate.toFixed(1) + '%');
     setText('contract-term-val', term + ' mo');
     setText('discount-rate-val', rate.toFixed(1) + '%');
     setText('free-period-val', credit + ' mo');
@@ -3804,7 +3981,11 @@
 
   ['contract-term', 'discount-rate', 'free-period'].forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.addEventListener('input', recalcNPV);
+    if (el) el.addEventListener('input', () => {
+      recalcNPV();
+      // MRC table ใช้ term/rate/credit ตัวเดียวกัน — re-render ให้ตัวเลขตรง
+      if (typeof mrcManager !== 'undefined' && mrcManager.render) mrcManager.render();
+    });
   });
 
   // NPV lock is synced via onGlobalRoleChange (single role entry point)
@@ -3835,6 +4016,14 @@
     const countEl = document.getElementById('fxRowCount');
     if (!tbody) return;
     if (countEl) countEl.textContent = fxRows.length;
+    // Sync ปุ่ม header + ช่อง USD/CNY (locked) กับแถว current — เลิก hardcode
+    const cur = fxRows.find(r => r.current) || fxRows[fxRows.length - 1];
+    if (cur) {
+      const btnRates = document.getElementById('fxBtnRates');
+      if (btnRates) btnRates.textContent = 'USD ' + cur.usd.toFixed(2) + ' · CNY ' + cur.cny.toFixed(2);
+      const u = document.getElementById('fxUsdInput'); if (u) u.value = cur.usd;
+      const c = document.getElementById('fxCnyInput'); if (c) c.value = cur.cny;
+    }
     tbody.innerHTML = fxRows.map(row => {
       const isEditing = fxEditingId === row.id;
       const hlClass = row.current ? 'highlight' : '';
@@ -3855,8 +4044,8 @@
       }
       return `
         <tr class="${hlClass}">
-          <td style="font-size:11px;">${row.start}${currentBadge}</td>
-          <td style="font-size:11px;">${row.end}</td>
+          <td style="font-size:11px;">${fmtDateDMY(row.start)}${currentBadge}</td>
+          <td style="font-size:11px;">${fmtDateDMY(row.end)}</td>
           <td style="font-size:11px; text-align:right;">${row.usd.toFixed(2)}</td>
           <td style="font-size:11px; text-align:right;">${row.cny.toFixed(2)}</td>
           <td style="text-align:center; white-space:nowrap;">
@@ -3915,10 +4104,8 @@
   // installManager.updateSubtotal and pmcmManager.updateSubtotal above.
   // Initial sync after sample data loaded
   setTimeout(() => {
-    installManager.render();
+    installManager.render(); // render → updateSubtotal → recalcAll ครบทั้งสายแล้ว
     pmcmManager.render();
-    if (typeof updateInstallPmcmKpi === 'function') updateInstallPmcmKpi();
-    if (typeof updateOprTotal === 'function') updateOprTotal();
   }, 80);
 
   function toggleFxSection() {
@@ -3941,6 +4128,38 @@
     const el = document.getElementById('ohSelectedLabel');
     if (el) el.textContent = txt;
   }
+
+  // ===== Overhead % (Tab 2) — drives OPR-100013 =====
+  function getOverheadPct() {
+    const r = document.querySelector('input[name="overhead"]:checked');
+    const v = parseFloat(r ? r.value : NaN);
+    return isNaN(v) ? 5 : v;
+  }
+  // Sync Tab 2 badge/cards + OPR-100013 row to the selected overhead
+  function syncOverheadUI(base, pct) {
+    const r = document.querySelector('input[name="overhead"]:checked');
+    const label = r ? (r.dataset.label || (pct + '%')) : ('โครงการปกติ 5%');
+    setOhLabel(label);
+    document.querySelectorAll('label.oh-card').forEach(card => {
+      const isSel = card.querySelector('input[name="overhead"]')?.checked;
+      card.style.background = isSel ? 'var(--info-light)' : 'var(--bg-secondary)';
+      card.style.border = isSel ? '2px solid var(--info)' : '2px solid transparent';
+    });
+    const slider = document.getElementById('opr13-slider');
+    const pctEl = document.getElementById('opr13-pct');
+    const amtEl = document.getElementById('opr13-amount');
+    const descEl = document.getElementById('opr13-desc');
+    if (slider) slider.value = pct;
+    if (pctEl) pctEl.textContent = pct.toFixed(1) + '%';
+    if (amtEl) amtEl.textContent = '฿' + Math.round((base || 0) * pct / 100).toLocaleString();
+    if (descEl) descEl.textContent = pct.toFixed(0) + '% — locked by Tab 2 (' + label + ')';
+  }
+  document.addEventListener('change', function(e) {
+    if (e.target.name === 'overhead') {
+      if (typeof markDirty === 'function') markDirty();
+      if (typeof updateOprTotal === 'function') updateOprTotal(); // recomputes + calls syncOverheadUI
+    }
+  });
 
   // show/hide custom text input for "อื่นๆ"
   document.addEventListener('change', function(e) {
@@ -3967,7 +4186,7 @@
     row.style.cssText = 'display:flex; align-items:center; gap:4px; padding:2px 4px 2px 0; border-bottom:1px solid var(--border); background:white; font-size:12px;';
     row.innerHTML = `
       <span style="flex:1; padding:2px 4px;">${escapeHtml(type)}</span>
-      <input type="number" class="row-input" placeholder="จำนวนเงิน" value="0" min="0" step="100"
+      <input type="text" inputmode="decimal" class="row-input fmt-num" placeholder="จำนวนเงิน" value="0"
              style="width:120px; text-align:right; padding:2px 4px; font-size:12px; border:1px solid var(--border); border-radius:var(--radius-sm);">
       <button class="row-action row-delete" onclick="document.getElementById('other-${id}').remove(); typeof markDirty==='function'&&markDirty();" title="ลบรายการนี้" style="flex-shrink:0; width:20px; height:20px;">
         <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 7l16 0M10 11l0 6M14 11l0 6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"/></svg>
@@ -3991,10 +4210,11 @@
   const STORAGE_KEY_SECTIONS = 'est_sections_v2';
 
   function getUserId() {
+    // ไม่ใช้ prompt() ขัดจังหวะผู้ใช้ — ใช้ default เงียบๆ (production ผูกกับ auth/employee ID)
     let uid = localStorage.getItem(STORAGE_KEY_USER);
     if (!uid) {
-      uid = prompt('ระบุชื่อผู้ใช้สำหรับจดจำการตั้งค่า (เช่น noppadol)', '') || 'guest';
-      localStorage.setItem(STORAGE_KEY_USER, uid.trim() || 'guest');
+      uid = 'guest';
+      localStorage.setItem(STORAGE_KEY_USER, uid);
     }
     return uid;
   }
@@ -4078,7 +4298,7 @@
         body.style.maxHeight = body.scrollHeight + 'px';
         body.style.opacity = '1';
         body.addEventListener('transitionend', function onEnd() {
-          if (!body.classList.contains('collapsed')) body.style.maxHeight = '4000px';
+          if (!body.classList.contains('collapsed')) body.style.maxHeight = 'none';
           body.removeEventListener('transitionend', onEnd);
         });
         body.classList.remove('collapsed');
@@ -4173,7 +4393,7 @@
         <div style="color:var(--text-secondary);">${escapeHtml(item.project)}</div>
         <div class="right" style="font-weight:500;">${fmtMoney(item.amount)}</div>
         <div style="text-align:center;"><span class="qt-status ${item.status}">${statusLabel[item.status]}</span></div>
-        <div style="font-size:11px; color:var(--text-secondary);">${item.validUntil}</div>
+        <div style="font-size:11px; color:var(--text-secondary);">${fmtDateDMY(item.validUntil)}</div>
         <div style="display:flex; gap:3px; justify-content:center;">
           <button class="row-action" title="ดู / พิมพ์ PDF" onclick="printQuotation('${item.no}')">
             <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17 17h2a2 2 0 0 0 2 -2v-4a2 2 0 0 0 -2 -2h-14a2 2 0 0 0 -2 2v4a2 2 0 0 0 2 2h2"/><path d="M17 9v-4a2 2 0 0 0 -2 -2h-6a2 2 0 0 0 -2 2v4"/><rect x="7" y="13" width="10" height="8" rx="2"/></svg>
@@ -4207,20 +4427,28 @@
     const validDays = parseInt(document.getElementById('convertValidDays')?.value) || 30;
     const payTerms = document.getElementById('convertPayTerms')?.value || '';
     const incVat = document.getElementById('convertIncVat')?.checked;
+    const discount = parseNum(document.getElementById('convertDiscount')?.value);
     const validUntil = new Date(date);
     validUntil.setDate(validUntil.getDate() + validDays);
     const exVat = Math.round(window.getLiveProjectValue());
-    const amount = incVat ? Math.round(exVat * 1.07) : exVat;
+    const netEx = Math.max(0, exVat - discount);
+    const amount = incVat ? Math.round(netEx * 1.07) : netEx;
     const seq = String(qtIdCounter++).padStart(3, '0');
     quotations.unshift({
       no: 'QT-202605-' + seq, estNo,
-      customer: 'Central Food Retail Co., Ltd.',
-      project: 'Smart Meeting Room & Managed Connectivity',
+      // อ่านจากฟอร์ม Tab 1 + modal จริง — ไม่ hardcode ลูกค้า/โครงการ
+      customer: document.getElementById('custName')?.value || '-',
+      project: document.getElementById('projectName')?.value || '-',
+      custId: document.getElementById('convertCustId')?.value || '',
+      remark: document.getElementById('convertRemark')?.value || '',
+      quoteType: document.querySelector('input[name="quoteType"]:checked')?.value || 'onetime',
+      salesperson: document.getElementById('salePerson')?.value || '',
+      discount,
       amount, amountExVat: exVat,
       status: 'draft', date,
       validUntil: validUntil.toISOString().slice(0, 10),
       payTerms, incVat,
-      contact: 'procurement@centralfoodretail.com'
+      contact: ''
     });
     closeConvertModal();
     renderQuotationList();
@@ -4251,8 +4479,10 @@
     }
     if (typeof mrcManager !== 'undefined' && mrcManager.state && mrcManager.state.rows) {
       const term = parseInt(document.getElementById('globalContractTerm')?.value)||36;
+      // MRC line: unit price = ราคา/เดือน × ระยะสัญญา เพื่อให้ line total สอดคล้องกับ
+      // desc "(MRC × term เดือน)" และ Grand Total ตรงกับ projectValue (MRC × term)
       mrcManager.state.rows.filter(r => r.inQuote !== false && (r.desc || r.vendor)).forEach(r => {
-        equipItems.push({ code:r.code||'', desc:(r.vendor?r.vendor+' — ':'')+r.desc+' (MRC × '+term+' เดือน)', qty:r.unit||0, unitPrice:r.salePerMonth||0 });
+        equipItems.push({ code:r.code||'', desc:(r.vendor?r.vendor+' — ':'')+r.desc+' (MRC × '+term+' เดือน)', qty:r.unit||0, unitPrice:(r.salePerMonth||0)*term });
       });
     }
 
@@ -4307,6 +4537,7 @@
 
     // ── HTML template ─────────────────────────────────────────────────────
     const win = window.open('', '_blank');
+    if (!win) { alert('เบราว์เซอร์บล็อกป๊อปอัป — กรุณาอนุญาต popup สำหรับหน้านี้ แล้วกดพิมพ์อีกครั้ง'); return; }
     win.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">
 <title>${qt.no}</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -4578,7 +4809,7 @@ window.onload = function() {
       'เรียน ท่านผู้มีอำนาจจัดซื้อ\n\n' +
       'บริษัท 1toAll จำกัด ขอนำส่งใบเสนอราคาเลขที่ ' + qt.no + ' สำหรับโครงการ "' + qt.project + '"\n\n' +
       'ยอดเสนอราคารวม: ' + fmtMoney(qt.amount) + ' (รวม VAT)\n' +
-      'ยืนราคาถึงวันที่: ' + qt.validUntil + '\n' +
+      'ยืนราคาถึงวันที่: ' + fmtDateDMY(qt.validUntil) + '\n' +
       'เงื่อนไขชำระเงิน: ' + qt.payTerms + '\n\n' +
       'รายละเอียดตามเอกสารแนบ หากมีข้อสงสัยกรุณาติดต่อกลับ\n\n' +
       'ขอแสดงความนับถือ\nฝ่ายขาย · บริษัท 1toAll จำกัด');
@@ -4622,7 +4853,7 @@ window.onload = function() {
 
   let pipelineState = {
     steps: [
-      { status: 'done',    ts: '12 May, 14:32', comment: '', history: [{ action: 'approved', ts: '12 May, 14:32', comment: 'Technical scope ผ่าน' }] },
+      { status: 'done',    ts: '12/05/2026 14:32', comment: '', history: [{ action: 'approved', ts: '12/05/2026 14:32', comment: 'Technical scope ผ่าน' }] },
       { status: 'current', ts: null,            comment: '', history: [] },
       { status: 'waiting', ts: null,            comment: '', history: [] },
       { status: 'waiting', ts: null,            comment: '', history: [] }
@@ -4857,8 +5088,7 @@ window.onload = function() {
     }
 
     const now = new Date();
-    const ts = now.getDate() + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][now.getMonth()] +
-               ', ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+    const ts = fmtDateDMY(now) + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
 
     const currentIdx = getCurrentStepIdx();
     if (currentIdx === -1) return;
@@ -4986,20 +5216,14 @@ window.onload = function() {
       const d = new Date(startEl.value);
       d.setMonth(d.getMonth() + months);
       d.setDate(d.getDate() - 1);
-      endEl.value = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-      // Sync summary dates
+      endEl.value = fmtDateDMY(d);
+      // Sync summary dates (DD/MM/YYYY)
       const sumDates = document.getElementById('summary-contract-dates');
-      if (sumDates) {
-        const start = new Date(startEl.value);
-        const startStr = start.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
-        const endStr = d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
-        sumDates.textContent = startStr + ' – ' + endStr;
-      }
+      if (sumDates) sumDates.textContent = fmtDateDMY(startEl.value) + ' – ' + fmtDateDMY(d);
     }
 
-    // 5. Trigger NPV recalc
-    if (typeof recalcNPV === 'function') recalcNPV();
-    if (typeof recalcSummary === 'function') recalcSummary();
+    // 5. คำนวณใหม่ทั้งระบบ (NPV + Summary + OPR)
+    if (typeof recalcAll === 'function') recalcAll();
   }
 
   // Sync end date when start date changes
@@ -5010,11 +5234,13 @@ window.onload = function() {
     }
   });
 
-  // Init on load — push default 36mo to all consumers
+  // Init on load — restore saved draft first, then push contract term to all consumers
   setTimeout(() => {
+    if (typeof loadAppState === 'function') {
+      try { loadAppState(); } catch (e) { console.warn('Load draft failed:', e); }
+    }
     const termEl = document.getElementById('globalContractTerm');
-    if (termEl) onContractTermChange(termEl.value);
-    if (typeof recalcSummary === 'function') recalcSummary();
+    if (termEl) onContractTermChange(termEl.value); // เรียก recalcAll ภายใน (ครอบคลุมค่า opr*/overhead ที่ restore มา)
     if (typeof renderPipeline === 'function') renderPipeline();
     if (typeof onGlobalRoleChange === 'function') onGlobalRoleChange(document.getElementById('globalUserRole')?.value || 'presale');
   }, 120);
@@ -5115,7 +5341,7 @@ window.onload = function() {
 
   renderServiceLines();
 
-  updateOprTotal();
+  recalcAll(); // initial full recalculation
 
   // Inject Quotation Logo into App Header
   const appLogoIcon = document.querySelector('.logo-icon');
