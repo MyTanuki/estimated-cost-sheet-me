@@ -64,8 +64,8 @@
   <div class="sub">Phase 1: Master Data บน Supabase (PostgreSQL) · อ้างอิงแนวทาง Product System Blueprint (M02 Item Master / M04 Vendor)</div>
   <div class="meta">
     <span>ที่มาข้อมูล: (Rev.2.4.7) Feasibility 1toAll (Draft).xlsx</span>
-    <span>11 ตาราง · 6,328 แถว seed</span>
-    <span>จัดทำ: 12/06/2026</span>
+    <span>14 ตาราง (master 11 + transaction 3) · 6,328 แถว seed</span>
+    <span>ปรับปรุง: 12/06/2026</span>
   </div>
 </div></header>
 
@@ -144,6 +144,17 @@
       <ul><li><span class="pk">name</span> PK · sort</li></ul></div>
   </div>
 
+  <h3>Transaction Layer — Customer & Quotation (migration #2: <code>db/schema2_customer_quotation.sql</code>)</h3>
+  <p style="font-size:13px;color:#666;">ตาม blueprint M04 (Customer) + M08 (Sales) · RLS <b>deny-by-default</b> — publishable key อ่าน/เขียนไม่ได้ จนกว่าจะมี Auth (Phase 2.4) · ใช้รองรับการเชื่อม CRM</p>
+  <div class="grid">
+    <div class="ent" style="border-left-color:var(--rust);"><h4>customer</h4><div class="d">M04 Customer Master — เจ้าของข้อมูลจริงคือ CRM (sync ผ่าน crm_ref)</div>
+      <ul><li><span class="pk">customer_no</span> 'CUST-YYMM-SEQ4' PK</li><li>name · tax_id (unique เมื่อมีค่า)</li><li>address · contact_name/email/phone</li><li><span class="fk">sale_team → sale_team.name</span></li><li>crm_ref (Account Id ฝั่ง CRM)</li><li>blocked · created_at · updated_at</li></ul></div>
+    <div class="ent" style="border-left-color:var(--rust);"><h4>quotation</h4><div class="d">M08 ใบเสนอราคา (header) — แทน object ใน localStorage</div>
+      <ul><li><span class="pk">quote_no</span> 'QT-YYYYMM-SEQ' PK</li><li>est_no (อ้างใบ EST ต้นทาง)</li><li><span class="fk">customer_no → customer</span></li><li>quote_type check(onetime/recurring/zoom)</li><li>status check(draft/sent/accepted/expired/cancelled)</li><li>quote_date · valid_until (check ≥ quote_date)</li><li>amount_ex_vat · discount · vat_pct · amount_inc_vat</li><li>pay_terms · salesperson · remark · crm_ref</li></ul></div>
+    <div class="ent" style="border-left-color:var(--rust);"><h4>quotation_line</h4><div class="d">บรรทัดรายการในใบเสนอราคา</div>
+      <ul><li><span class="pk">quote_no + line_no</span> PK ผสม</li><li><span class="fk">quote_no → quotation</span> (on delete cascade)</li><li><span class="fk">item_no → item</span> (nullable — บรรทัดอิสระ)</li><li>description · qty · unit_price · line_total</li><li>is_mrc (บรรทัดรายเดือน × term แล้ว)</li><li class="cm">trigger: ห้ามใช้ item ที่ blocked (BR-M08-006)</li></ul></div>
+  </div>
+
   <h3>การ map สู่ตัวแปรในแอป (applyMasterData)</h3>
   <table>
     <thead><tr><th>ตาราง DB</th><th>ตัวแปรใน index.html</th><th>ใช้ที่</th></tr></thead>
@@ -172,6 +183,10 @@
       <tr><td>BR-SVC-001</td><td><code>appv_l1 ≥ appv_l2</code> (Director threshold ≥ C-Level) — ยกเว้น SI Connectivity (AM) ที่ l1 = 1.00 ตาม Reference</td><td><span class="sev W">Warning</span></td></tr>
       <tr><td>BR-APP-001</td><td>แอปต้องเปิดใช้งานได้แม้ DB ล่ม/offline — cache ล่าสุดใน localStorage, fallback สุดท้ายคือชุด demo ฝังในไฟล์</td><td><span class="sev W">Warning</span></td></tr>
       <tr><td>BR-MIG-001</td><td>การอัปเดต master ทำผ่าน <code>generate_seed.py</code> + seed.sql เท่านั้น (truncate + reload ทั้งชุด) — ห้ามแก้รายแถวปนกับ pipeline เพื่อให้ตรวจสอบกลับ Excel rev ได้</td><td><span class="sev W">Warning</span></td></tr>
+      <tr><td>BR-QT-001</td><td><code>quotation_line.item_no</code> ที่ <code>blocked = true</code> ถูกปฏิเสธที่ DB ด้วย trigger (ตาม BR-M08-006 ของ blueprint)</td><td><span class="sev E">Error</span></td></tr>
+      <tr><td>BR-QT-002</td><td>ลูกค้า <code>blocked = true</code> สร้างใบเสนอราคาใหม่ไม่ได้ (trigger ที่ insert)</td><td><span class="sev E">Error</span></td></tr>
+      <tr><td>BR-QT-003</td><td><code>valid_until ≥ quote_date</code> · <code>discount ≥ 0</code> · status/quote_type จำกัดด้วย check constraint</td><td><span class="sev E">Error</span></td></tr>
+      <tr><td>BR-QT-004</td><td>ตาราง customer/quotation/quotation_line = RLS deny-by-default — publishable key เข้าถึงไม่ได้ เข้าผ่าน service role (server side) เท่านั้น จนกว่าจะมี Auth</td><td><span class="sev E">Error</span></td></tr>
     </tbody>
   </table>
   <div class="note">Phase 1 ยังไม่มีตาราง transaction — กฎ immutable ledger (BR-M05) ของ blueprint จะบังคับใช้เมื่อเพิ่ม
@@ -213,6 +228,12 @@
     แล้วลองค้นหา item ใน Tab 3 ด้วยชื่อที่ไม่อยู่ในชุด demo
   </div></div>
 
+  <h3>Migration #2 — Customer & Quotation (สำหรับเชื่อม CRM)</h3>
+  <pre><span class="cm">-- วางเนื้อหา db/schema2_customer_quotation.sql ใน SQL Editor → Run แล้วตรวจ:</span>
+<span class="hl">select count(*) from information_schema.tables where table_schema='public';</span>  <span class="cm">-- = 14</span>
+<span class="hl">insert into customer (customer_no, name) values ('CUST-TEST-0001','ทดสอบ');</span>     <span class="cm">-- ผ่าน (รันใน SQL Editor = service role)</span>
+<span class="hl">delete from customer where customer_no = 'CUST-TEST-0001';</span><button class="copy" onclick="cp(this)">คัดลอก</button></pre>
+
   <h3>การอัปเดตข้อมูลเมื่อมี Excel rev ใหม่</h3>
   <pre>python3 db/generate_seed.py <span class="hl">"(Rev.X.Y.Z) Feasibility 1toAll.xlsx"</span> &gt; db/seed.sql
 <span class="cm"># แล้ว Run seed.sql ใหม่ใน SQL Editor (สคริปต์ truncate + reload ให้เอง)</span><button class="copy" onclick="cp(this)">คัดลอก</button></pre>
@@ -225,7 +246,7 @@
     <thead><tr><th style="width:60px;">ลำดับ</th><th>งาน</th><th>ตาราง/ส่วนที่เกี่ยว</th></tr></thead>
     <tbody>
       <tr><td>2.1</td><td>ตาราง transaction: ใบ Estimated Cost Sheet + บรรทัดรายการ → เลิกเก็บ draft ใน localStorage</td><td class="mono">est_document, est_investment_line, est_mrc_line, est_install_line, est_opr_value</td></tr>
-      <tr><td>2.2</td><td>Quotation + เลขรันเอกสาร + สถานะ (draft/sent/accepted/expired)</td><td class="mono">quotation, doc_sequence</td></tr>
+      <tr><td>2.2</td><td>Quotation + ลูกค้า — <b style="color:#1D7A4F;">✓ โครงสร้างสร้างแล้ว</b> (migration #2) เหลือ write path จากแอป + เลขรันเอกสาร</td><td class="mono">customer, quotation, quotation_line, doc_sequence</td></tr>
       <tr><td>2.3</td><td>Approval pipeline จริง — log การอนุมัติ immutable ตาม BR-M05 ของ blueprint</td><td class="mono">approval_step, approval_log (no UPDATE/DELETE)</td></tr>
       <tr><td>2.4</td><td>Supabase Auth + role mapping (presale/sale/clevel/ceo) แทน dropdown สิทธิ์</td><td class="mono">auth.users, user_role + RLS ต่อ role</td></tr>
       <tr><td>2.5</td><td>UI render จาก DB: radio overhead, dropdown service/project/payment/staff</td><td class="mono">overhead_type, staff, project_type, payment_type</td></tr>

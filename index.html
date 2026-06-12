@@ -4584,6 +4584,7 @@ body{font-size:11.5px;color:#1a1a1a;background:#fff;}
 .itmtbl .c{text-align:center;}
 .itmtbl .r{text-align:right;}
 .itmtbl tbody tr:nth-child(even){background:#fafafa;}
+.itmtbl tbody tr{page-break-inside:avoid;break-inside:avoid;} /* กันแถวรายการถูกตัดกลางแถวระหว่างหน้า */
 /* ── Scope of Work (compact) ── */
 .scope-block{border:none;padding:4px 8px;font-size:9.5px;page-break-inside:avoid;margin-top:14px;}
 .scope-title{font-weight:700;margin-bottom:2px;color:#333;font-size:10px;}
@@ -4604,8 +4605,8 @@ body{font-size:11.5px;color:#1a1a1a;background:#fff;}
 /* ── Signatures ── */
 .sigs{display:grid;grid-template-columns:1fr 1fr 1.4fr;gap:25px;margin-top:15px;border-top:1px solid #ccc;padding-top:10px;page-break-inside:avoid;}
 .sc{text-align:center;display:flex;flex-direction:column;}
-.sc-hdr{background:#d9d9d9;color:#000;font-weight:700;font-size:10.5px;padding:5px 0;}
-.sc-space{height:45px;flex:1;}
+.sc-hdr{background:#d9d9d9;color:#000;font-weight:700;font-size:10.5px;padding:5px 0;margin-bottom:6px;}
+.sc-space{height:90px;flex:1;} /* พื้นที่เซ็นจริง — อย่างน้อย 90px */
 .sc-date,.sc-name{font-size:10px;color:#000;padding:5px 0;margin:0;}
 .sc-date{border-bottom:1px solid #ccc;}
 .sc-name{border-bottom:1px solid #ccc;}
@@ -4722,7 +4723,9 @@ body{font-size:11.5px;color:#1a1a1a;background:#fff;}
       </td></tr>
       
       <!-- Footer content at the bottom of the last page -->
+      <!-- Terms + ลายเซ็นครอบใน div เดียว (break-inside:avoid) → ถ้าขึ้นหน้าใหม่ ไปด้วยกันทั้งก้อนเสมอ -->
       <tr id="footer-row"><td class="hdr-cell">
+        <div style="page-break-inside:avoid;break-inside:avoid;">
         <div class="terms">
           <div class="ttl">Terms &amp; Conditions</div>
           <ul>${termsHtml}</ul>
@@ -4747,6 +4750,7 @@ body{font-size:11.5px;color:#1a1a1a;background:#fff;}
             <div class="sc-name">${escapeHtml(qt.customer)}</div>
           </div>
         </div>
+        </div><!-- /keep-together wrapper -->
       </td></tr>
     </tbody>
   </table>
