@@ -2634,7 +2634,9 @@
     });
   }
 
-  // ===== Item Catalog Database — MSRP from Excel "Item" sheet (Rev 2.4.7) =====
+  // ===== Item Catalog — ชุด DEMO/FALLBACK (~38 รายการ) =====
+  // ข้อมูลจริง 6,221 รายการอยู่ใน database (db/seed.sql) — โหลดผ่าน loadMasterData()
+  // ชุดนี้ใช้เฉพาะกรณียังไม่ตั้งค่า DB_CONFIG และไม่มี cache เท่านั้น
   // Cost = ประมาณ 68% ของ MSRP, Sale = MSRP (ปรับได้ในตาราง)
   const itemCatalog = (function() {
     const raw = [
@@ -3885,6 +3887,15 @@
     { code: 'MRC-LED-MA', vendor: 'Leyard', desc: 'LED wall maintenance/mo', defaultCost: 12000, defaultSale: 18000 },
   ];
 
+  // Tab 5 ค้นจาก Item master ชุดเดียวกับ Tab 3 (ตาม Excel: MRC section ใช้ VLOOKUP tbl.itemcode เดียวกัน)
+  // ผนวก preset รายเดือน (mrc_catalog) ต่อท้าย — ราคา/เดือนปรับได้ในตารางหลังเพิ่ม
+  function getMrcSearchSource() {
+    return itemCatalog.concat(mrcCatalog.map(m => ({
+      code: m.code, vendor: m.vendor, desc: m.desc,
+      defaultCost: m.defaultCost, defaultSale: m.defaultSale
+    })));
+  }
+
   function searchMrcCatalog(query) {
     const q = (query || '').trim().toLowerCase();
     const dropdown = document.getElementById('mrcCatalogDropdown');
@@ -3892,8 +3903,8 @@
     const count = document.getElementById('mrcCatalogCount');
     if (!dropdown || !list || !count) return;
     if (!q) { dropdown.classList.remove('active'); return; }
-    const matches = mrcCatalog.filter(i =>
-      i.vendor.toLowerCase().includes(q) || i.code.toLowerCase().includes(q) || i.desc.toLowerCase().includes(q)
+    const matches = getMrcSearchSource().filter(i =>
+      (i.vendor || '').toLowerCase().includes(q) || i.code.toLowerCase().includes(q) || i.desc.toLowerCase().includes(q)
     );
     dropdown.classList.add('active');
     if (matches.length === 0) {
@@ -3905,19 +3916,22 @@
     list.innerHTML = matches.slice(0, 40).map(item => `
       <div class="catalog-item" onclick="addMrcFromCatalog('${item.code}')">
         <div>
-          <div style="font-weight:500; font-size:13px;">${highlightMatch(item.vendor + ' — ' + item.desc, query)}</div>
+          <div style="font-weight:500; font-size:13px;">${highlightMatch((item.vendor ? item.vendor + ' — ' : '') + item.desc, query)}</div>
           <div class="catalog-item-meta">${highlightMatch(item.code, query)}</div>
         </div>
         <div class="catalog-item-meta">Cost/mo</div>
         <div class="price">${formatMoney(item.defaultCost)}</div>
       </div>
     `).join('');
+    if (matches.length > 40) {
+      list.innerHTML += '<div class="catalog-empty" style="font-size:11px; padding:10px;">แสดง 40 รายการแรก · ลองค้นหาเฉพาะเจาะจงเพื่อจำกัดผล</div>';
+    }
   }
 
   function addMrcFromCatalog(code) {
-    const item = mrcCatalog.find(i => i.code === code);
+    const item = getMrcSearchSource().find(i => i.code === code);
     if (!item) return;
-    mrcManager.addRow({ vendor: item.vendor, code: item.code, desc: item.desc, unit: 1, costPerMonth: item.defaultCost, salePerMonth: item.defaultSale });
+    mrcManager.addRow({ vendor: item.vendor || '', code: item.code, desc: item.desc, unit: 1, costPerMonth: item.defaultCost, salePerMonth: item.defaultSale });
     const el = document.getElementById('mrcCatalogSearch');
     if (el) el.value = '';
     const dd = document.getElementById('mrcCatalogDropdown');
@@ -5185,6 +5199,105 @@ window.onload = function() {
   }
 
   // ============================================================
+  // ===== MASTER DATA LOADER — Phase 1: Supabase (PostgREST) =====
+  // ลำดับแหล่งข้อมูล: 1) Supabase → 2) cache ใน localStorage → 3) ชุด demo ที่ฝังในไฟล์
+  // Schema/Seed อยู่ที่ db/schema.sql + db/seed.sql · คู่มือ: database-design.html
+  // ============================================================
+  const DB_CONFIG = {
+    url: 'https://qdwhkfhwlcnuhghdfgga.supabase.co',
+    anonKey: 'sb_publishable_naBaYwS4QgOrOAelKaehUg_m2oH3D-T' // publishable key — ออกแบบให้อยู่ฝั่ง client ได้ (RLS = อ่านอย่างเดียว)
+  };
+  window.DB_CONFIG = DB_CONFIG;
+  const MASTER_CACHE_KEY = 'est_master_cache_v1';
+
+  // PostgREST คืนสูงสุด 1,000 แถว/ครั้ง → ดึงเป็นหน้าด้วย Range header (item มี 6,221 แถว)
+  async function fetchTable(table) {
+    const out = [];
+    for (let from = 0; ; from += 1000) {
+      const headers = { apikey: DB_CONFIG.anonKey, Range: from + '-' + (from + 999) };
+      // Authorization: Bearer ใช้กับ JWT anon key แบบเก่า (ขึ้นต้น eyJ) เท่านั้น
+      // key รูปแบบใหม่ sb_publishable_ ใช้ header apikey อย่างเดียว
+      if (DB_CONFIG.anonKey.startsWith('eyJ')) headers.Authorization = 'Bearer ' + DB_CONFIG.anonKey;
+      const res = await fetch(DB_CONFIG.url + '/rest/v1/' + table + '?select=*', { headers });
+      if (!res.ok) throw new Error(table + ' HTTP ' + res.status);
+      const page = await res.json();
+      out.push(...page);
+      if (page.length < 1000) break;
+    }
+    return out;
+  }
+
+  // แทนที่ master data ที่ฝังในไฟล์ด้วยข้อมูลจาก DB/cache (mutate in place — const อ้างถึงที่เดิม)
+  function applyMasterData(d) {
+    if (Array.isArray(d.item) && d.item.length) {
+      itemCatalog.length = 0;
+      d.item.forEach(r => {
+        if (r.blocked) return; // BR: blocked ห้ามเลือกใช้ในเอกสารใหม่
+        const msrp = +r.unit_price || 0;
+        itemCatalog.push({
+          code: r.item_no, vendor: r.vendor_name || '', desc: r.description,
+          unit: r.base_uom || 'PCS', msrp,
+          defaultCost: Math.round(msrp * 0.68), // ASSUMPTION เดิมของแอป: cost ≈ 68% MSRP
+          defaultSale: msrp
+        });
+      });
+    }
+    if (Array.isArray(d.service_type) && d.service_type.length) {
+      Object.keys(serviceData).forEach(k => delete serviceData[k]);
+      d.service_type.forEach(r => {
+        serviceData[r.code] = { head: r.head_role, headName: r.head_name,
+          mkt: +r.mkt_rate, l1: +r.appv_l1, l2: +r.appv_l2, group: r.approval_group };
+      });
+    }
+    if (Array.isArray(d.sale_team) && d.sale_team.length) {
+      Object.keys(saleTeams).forEach(k => delete saleTeams[k]);
+      d.sale_team.forEach(r => {
+        saleTeams[r.name] = { head: r.head_name, cLevel: r.c_level_role, cLevelName: r.c_level_name };
+      });
+    }
+    if (Array.isArray(d.mrc_catalog) && d.mrc_catalog.length) {
+      mrcCatalog.length = 0;
+      d.mrc_catalog.forEach(r => mrcCatalog.push({ code: r.code, vendor: r.vendor,
+        desc: r.description, defaultCost: +r.default_cost, defaultSale: +r.default_sale }));
+    }
+    if (Array.isArray(d.install_pmcm_standard) && d.install_pmcm_standard.length) {
+      installPmcmCatalog.length = 0;
+      d.install_pmcm_standard.forEach(r => installPmcmCatalog.push({
+        code: r.code, name: r.name, meta: r.meta || '', price: +r.unit_price }));
+    }
+    if (Array.isArray(d.fx_rate) && d.fx_rate.length) {
+      const today = new Date().toISOString().slice(0, 10);
+      fxRows = d.fx_rate.map((r, i) => ({ id: i + 1, start: r.start_date, end: r.end_date,
+        usd: +r.usd, cny: +r.cny, current: r.start_date <= today && today <= r.end_date }));
+      fxIdCounter = fxRows.length + 1;
+      if (typeof fxRender === 'function') fxRender();
+    }
+    window.__masterSource = d.__source || 'db';
+  }
+  window.applyMasterData = applyMasterData;
+
+  async function loadMasterData() {
+    // 2) ใช้ cache ก่อน (เปิดเร็ว/ใช้ offline ได้) แล้วค่อย refresh จาก DB เบื้องหลัง
+    try {
+      const cached = JSON.parse(localStorage.getItem(MASTER_CACHE_KEY) || 'null');
+      if (cached) { cached.__source = 'cache'; applyMasterData(cached); }
+    } catch (e) { /* cache เสีย — ข้าม */ }
+    if (!DB_CONFIG.url || !DB_CONFIG.anonKey) return; // ยังไม่ตั้งค่า DB → คงข้อมูล demo/cache
+    try {
+      const tables = ['item', 'service_type', 'sale_team', 'mrc_catalog', 'install_pmcm_standard', 'fx_rate'];
+      const data = {};
+      for (const t of tables) data[t] = await fetchTable(t);
+      applyMasterData(data);
+      try { localStorage.setItem(MASTER_CACHE_KEY, JSON.stringify(data)); } catch (e) { /* quota */ }
+      if (typeof recalcAll === 'function') recalcAll();
+      console.info('[master] loaded from Supabase: ' + (data.item ? data.item.length : 0) + ' items');
+    } catch (e) {
+      console.warn('[master] Supabase load failed — ใช้ cache/demo แทน: ' + e.message);
+    }
+  }
+  window.loadMasterData = loadMasterData;
+
+  // ============================================================
   // ===== GLOBAL CONTRACT TERM — single source of truth =====
   // ============================================================
   function onContractTermChange(val) {
@@ -5243,6 +5356,7 @@ window.onload = function() {
     if (termEl) onContractTermChange(termEl.value); // เรียก recalcAll ภายใน (ครอบคลุมค่า opr*/overhead ที่ restore มา)
     if (typeof renderPipeline === 'function') renderPipeline();
     if (typeof onGlobalRoleChange === 'function') onGlobalRoleChange(document.getElementById('globalUserRole')?.value || 'presale');
+    if (typeof loadMasterData === 'function') loadMasterData(); // async — master จาก Supabase/cache (Phase 1)
   }, 120);
 
   // ============================================================
