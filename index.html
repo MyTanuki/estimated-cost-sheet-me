@@ -549,9 +549,28 @@
           <option value="ceo">CEO</option>
         </select>
       </div>
+      <span id="authUserBadge" style="display:none; align-items:center; gap:6px; font-size:11px; padding:4px 8px; background:var(--bg-secondary); border:1px solid var(--border-strong); border-radius:var(--radius-sm); color:var(--text-secondary);"></span>
+      <button class="btn" id="btnLogout" onclick="handleLogout()" style="display:none;"><i class="ti ti-logout"></i> ออกจากระบบ</button>
       <span class="badge badge-warning"><i class="ti ti-edit" style="vertical-align: -2px;"></i> Draft</span>
       <button class="btn btn-primary" id="btnSave" onclick="doSave()"><i class="ti ti-device-floppy"></i> Save</button>
-      <button class="btn btn-primary"><i class="ti ti-send"></i> Submit</button>
+      <button class="btn btn-primary" id="btnSubmit" onclick="submitForApproval()"><i class="ti ti-send"></i> Submit</button>
+    </div>
+  </div>
+
+  <!-- ===== Auth Login Gate (Phase 2.4) — ซ่อนจนกว่า AUTH_CONFIG.enabled = true ===== -->
+  <div id="authOverlay" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(15,23,42,0.55); backdrop-filter:blur(3px); align-items:center; justify-content:center;">
+    <div style="width:360px; max-width:92vw; background:white; border-radius:12px; box-shadow:0 20px 50px rgba(0,0,0,0.3); padding:28px; box-sizing:border-box;">
+      <div style="text-align:center; margin-bottom:18px;">
+        <div style="font-size:20px; font-weight:700; color:var(--primary-dark);">Estimated Cost Sheet</div>
+        <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">เข้าสู่ระบบเพื่อใช้งาน</div>
+      </div>
+      <label style="font-size:12px; color:var(--text-secondary);">อีเมล</label>
+      <input id="authEmail" type="email" autocomplete="username" style="width:100%; box-sizing:border-box; padding:9px 10px; margin:4px 0 12px; border:1px solid var(--border-strong); border-radius:6px; font-family:inherit;">
+      <label style="font-size:12px; color:var(--text-secondary);">รหัสผ่าน</label>
+      <input id="authPassword" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')handleLogin()" style="width:100%; box-sizing:border-box; padding:9px 10px; margin:4px 0 14px; border:1px solid var(--border-strong); border-radius:6px; font-family:inherit;">
+      <div id="authError" style="display:none; font-size:12px; color:#dc2626; background:#fef2f2; border:1px solid #fecaca; border-radius:6px; padding:8px 10px; margin-bottom:12px;"></div>
+      <button class="btn btn-primary" id="btnAuthLogin" onclick="handleLogin()" style="width:100%; justify-content:center; margin-bottom:8px;"><i class="ti ti-login"></i> เข้าสู่ระบบ</button>
+      <button class="btn" id="btnAuthMagic" onclick="handleMagicLink()" style="width:100%; justify-content:center;"><i class="ti ti-mail"></i> ส่งลิงก์เข้าสู่ระบบทางอีเมล</button>
     </div>
   </div>
 
@@ -2426,20 +2445,15 @@
     }
   }
 
-  function doSave() {
-    // 1) Form fields ที่มี id (checkbox/select/text/number)
+  // สร้าง snapshot ฟอร์มทั้งใบ (ใช้ร่วมกัน: localStorage draft + payload ของ est_document ใน DB)
+  function buildDraftState() {
     const fields = {};
     document.querySelectorAll('input, select, textarea').forEach(el => {
       if (!el.id) return;
-      if (el.type === 'checkbox' || el.type === 'radio') {
-        fields[el.id] = el.checked;
-      } else {
-        fields[el.id] = el.value;
-      }
+      if (el.type === 'checkbox' || el.type === 'radio') fields[el.id] = el.checked;
+      else fields[el.id] = el.value;
     });
-
-    // 2) Dynamic table state — single source of truth arrays ของทุก tab
-    const state = {
+    return {
       version: 2,
       savedAt: new Date().toISOString(),
       fields,
@@ -2460,12 +2474,24 @@
         qtIdCounter
       }
     };
+  }
+  window.buildDraftState = buildDraftState;
+
+  function doSave() {
+    const state = buildDraftState();
 
     try {
       localStorage.setItem('est_form_draft', JSON.stringify(state));
       localStorage.setItem('est_form_draft_ts', state.savedAt);
     } catch (e) {
       console.warn('Save failed:', e);
+    }
+
+    // Phase 2.5 — best-effort: เขียนลง est_document ใน DB ด้วย (ไม่กระทบ flow เดิมถ้าไม่ได้ login)
+    if (typeof DbWrite !== 'undefined' && AUTH_CONFIG.enabled && Auth.isAuthed()) {
+      DbWrite.saveEstDocument('draft')
+        .then(r => { if (r && r.ok) dbNotify('บันทึกลงฐานข้อมูลแล้ว · ' + r.est_no); })
+        .catch(e => dbNotify('บันทึก DB ไม่สำเร็จ: ' + e.message, true));
     }
 
     // Visual feedback — make button gray (disabled look)
@@ -3700,8 +3726,9 @@
       '<b>คำแนะนำ:</b> เพิ่ม sale price เพื่อยกระดับ margin ข้าม threshold ถัดไป → ลดลำดับผู้อนุมัติ<br>' +
       '<b>Recurring:</b> ' + recurringPct.toFixed(1) + '% · ' + paybackStr;
 
-    // Publish live state for other modules (pipeline, quotation)
+    // Publish live state for other modules (pipeline, quotation, DB write path)
     window.__projectValue = projectValue;
+    window.__netProfit = netProfit;
     window.__approval = { netMargin, approver, requiredSteps: ai.steps, approverName: ai.name, group };
     try { if (typeof renderPipeline === 'function') renderPipeline(); } catch (e) { /* pipeline not yet initialized */ }
 
@@ -5159,6 +5186,13 @@ window.onload = function() {
 
     renderPipeline();
 
+    // Phase 2.5 — best-effort: บันทึกการตัดสินลง DB (approval_log + อัปเดต request/est_document)
+    if (typeof DbWrite !== 'undefined' && AUTH_CONFIG.enabled && Auth.isAuthed()) {
+      DbWrite.recordDecision(action, comment, currentIdx)
+        .then(r => { if (r && r.ok) dbNotify('บันทึกการตัดสินลง DB แล้ว · est: ' + r.est_status); })
+        .catch(e => dbNotify('บันทึกการตัดสิน DB ไม่สำเร็จ: ' + e.message, true));
+    }
+
     const metaCfg = {
       approved: { label: 'Approved', bg: 'var(--success-light)', fg: 'var(--success-dark)', badge: 'badge-success', next: '✓ Forwarded to Step ' + (currentIdx + 2) },
       revision:  { label: 'Revision Requested', bg: 'var(--warning-light)', fg: 'var(--warning-dark)', badge: 'badge-warning', next: '↩ Returned to Presale' },
@@ -5213,6 +5247,322 @@ window.onload = function() {
   };
   window.DB_CONFIG = DB_CONFIG;
   const MASTER_CACHE_KEY = 'est_master_cache_v1';
+
+  // ============================================================
+  // ===== AUTH — Phase 2.4 (Supabase GoTrue /auth/v1/*) =====
+  // เปิดใช้งานเมื่อพร้อม: ตั้ง AUTH_CONFIG.enabled = true หลังสร้าง auth users
+  // ใน dashboard + รัน UPDATE app_user.auth_uid (db/schema4_auth_rls.sql)
+  // ค่า default = false → แอปทำงานเหมือนเดิมทุกอย่าง (role selector ใช้ได้, ไม่มี gate)
+  // ใช้ apikey = publishable key เดียวกับ master loader
+  // ============================================================
+  const AUTH_CONFIG = { enabled: true };
+  window.AUTH_CONFIG = AUTH_CONFIG;
+  const AUTH_SESSION_KEY = 'est_auth_session_v1';
+
+  const Auth = {
+    session: null,
+    _load() {
+      try { this.session = JSON.parse(localStorage.getItem(AUTH_SESSION_KEY) || 'null'); }
+      catch (e) { this.session = null; }
+      return this.session;
+    },
+    _save(s) {
+      this.session = s;
+      try { localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(s)); } catch (e) {}
+    },
+    _clear() {
+      this.session = null;
+      try { localStorage.removeItem(AUTH_SESSION_KEY); } catch (e) {}
+    },
+    isAuthed() { return !!(this.session && this.session.access_token); },
+    async _authFetch(path, body) {
+      const res = await fetch(DB_CONFIG.url + '/auth/v1/' + path, {
+        method: 'POST',
+        headers: { apikey: DB_CONFIG.anonKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error_description || data.msg || data.error || ('HTTP ' + res.status));
+      return data;
+    },
+    async signInPassword(email, password) {
+      const d = await this._authFetch('token?grant_type=password', { email, password });
+      this._save({ access_token: d.access_token, refresh_token: d.refresh_token,
+        expires_at: Math.floor(Date.now() / 1000) + (d.expires_in || 3600), user: d.user });
+      return d;
+    },
+    async sendMagicLink(email) {
+      return this._authFetch('otp', { email, create_user: false });
+    },
+    // รับ session จาก magic link redirect (#access_token=...)
+    consumeHash() {
+      if (!location.hash || location.hash.indexOf('access_token=') < 0) return false;
+      const p = new URLSearchParams(location.hash.slice(1));
+      const at = p.get('access_token');
+      if (!at) return false;
+      this._save({ access_token: at, refresh_token: p.get('refresh_token'),
+        expires_at: Math.floor(Date.now() / 1000) + (parseInt(p.get('expires_in')) || 3600), user: null });
+      try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+      return true;
+    },
+    async refresh() {
+      if (!this.session || !this.session.refresh_token) return false;
+      try {
+        const d = await this._authFetch('token?grant_type=refresh_token', { refresh_token: this.session.refresh_token });
+        this._save({ access_token: d.access_token, refresh_token: d.refresh_token,
+          expires_at: Math.floor(Date.now() / 1000) + (d.expires_in || 3600), user: d.user });
+        return true;
+      } catch (e) { this._clear(); return false; }
+    },
+    async getToken() {
+      if (!this.session) this._load();
+      if (!this.session) return null;
+      if (this.session.expires_at && this.session.expires_at - 60 < Math.floor(Date.now() / 1000)) {
+        await this.refresh();
+      }
+      return this.session ? this.session.access_token : null;
+    },
+    // header สำหรับ write path (Phase 2.5): Bearer token + apikey
+    async authHeaders() {
+      const t = await this.getToken();
+      return t ? { apikey: DB_CONFIG.anonKey, Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' } : null;
+    },
+    // ดึง row app_user ของผู้ใช้ปัจจุบัน (role/full_name/title) ผ่าน RLS (Bearer token)
+    async loadAppUser() {
+      const t = await this.getToken();
+      if (!t) return null;
+      let uid = this.session.user && this.session.user.id;
+      if (!uid) {
+        try {
+          const ur = await fetch(DB_CONFIG.url + '/auth/v1/user', { headers: { apikey: DB_CONFIG.anonKey, Authorization: 'Bearer ' + t } });
+          const u = await ur.json(); uid = u.id; this.session.user = u; this._save(this.session);
+        } catch (e) {}
+      }
+      if (!uid) return null;
+      try {
+        const r = await fetch(DB_CONFIG.url + '/rest/v1/app_user?select=user_id,email,full_name,role,c_level_role,title,sale_team&auth_uid=eq.' + uid,
+          { headers: { apikey: DB_CONFIG.anonKey, Authorization: 'Bearer ' + t } });
+        const rows = await r.json();
+        return Array.isArray(rows) && rows.length ? rows[0] : null;
+      } catch (e) { return null; }
+    },
+    async signOut() {
+      const t = this.session && this.session.access_token;
+      if (t) { try { await fetch(DB_CONFIG.url + '/auth/v1/logout', { method: 'POST', headers: { apikey: DB_CONFIG.anonKey, Authorization: 'Bearer ' + t } }); } catch (e) {} }
+      this._clear();
+    }
+  };
+  window.Auth = Auth;
+
+  function showAuthOverlay(show) {
+    const o = document.getElementById('authOverlay');
+    if (o) o.style.display = show ? 'flex' : 'none';
+  }
+  function setAuthError(msg) {
+    const e = document.getElementById('authError');
+    if (e) { e.textContent = msg || ''; e.style.display = msg ? 'block' : 'none'; }
+  }
+  // นำ app_user ที่ login มาขับ role + header (สิทธิ์มาจากบัญชี ไม่ใช่ dropdown)
+  function applyAuthedUser(appUser) {
+    if (!appUser) return;
+    const badge = document.getElementById('authUserBadge');
+    const logoutBtn = document.getElementById('btnLogout');
+    const sel = document.getElementById('globalUserRole');
+    if (typeof onGlobalRoleChange === 'function') onGlobalRoleChange(appUser.role);
+    if (sel) { sel.value = appUser.role; sel.disabled = true; sel.title = 'สิทธิ์กำหนดจากบัญชีที่เข้าสู่ระบบ'; sel.style.cursor = 'not-allowed'; }
+    if (badge) { badge.style.display = 'inline-flex';
+      badge.textContent = (appUser.full_name || appUser.email) + ' · ' + (ROLE_LABELS[appUser.role] || appUser.role); }
+    if (logoutBtn) logoutBtn.style.display = 'inline-flex';
+    window.__appUser = appUser;
+  }
+  async function handleLogin() {
+    const email = (document.getElementById('authEmail')?.value || '').trim();
+    const pw = document.getElementById('authPassword')?.value || '';
+    setAuthError('');
+    if (!email || !pw) { setAuthError('กรอกอีเมลและรหัสผ่าน'); return; }
+    const btn = document.getElementById('btnAuthLogin'); if (btn) btn.disabled = true;
+    try {
+      await Auth.signInPassword(email, pw);
+      const u = await Auth.loadAppUser();
+      if (!u) { setAuthError('เข้าสู่ระบบสำเร็จ แต่ไม่พบสิทธิ์ผู้ใช้ — auth_uid ยังไม่ถูกผูกกับ app_user'); }
+      else { applyAuthedUser(u); showAuthOverlay(false); }
+    } catch (e) { setAuthError('เข้าสู่ระบบไม่สำเร็จ: ' + e.message); }
+    finally { if (btn) btn.disabled = false; }
+  }
+  window.handleLogin = handleLogin;
+  async function handleMagicLink() {
+    const email = (document.getElementById('authEmail')?.value || '').trim();
+    setAuthError('');
+    if (!email) { setAuthError('กรอกอีเมลก่อนขอลิงก์'); return; }
+    try { await Auth.sendMagicLink(email); setAuthError('ส่งลิงก์เข้าสู่ระบบไปที่ ' + email + ' แล้ว — เปิดอีเมลเพื่อเข้าสู่ระบบ'); }
+    catch (e) { setAuthError('ส่งลิงก์ไม่สำเร็จ: ' + e.message); }
+  }
+  window.handleMagicLink = handleMagicLink;
+  async function handleLogout() {
+    await Auth.signOut();
+    location.reload();
+  }
+  window.handleLogout = handleLogout;
+  async function initAuth() {
+    if (!AUTH_CONFIG.enabled) { showAuthOverlay(false); return; } // ปิดอยู่ → แอปทำงานเหมือนเดิม
+    Auth.consumeHash();
+    Auth._load();
+    if (Auth.isAuthed()) {
+      const u = await Auth.loadAppUser();
+      if (u) { applyAuthedUser(u); showAuthOverlay(false); return; }
+    }
+    showAuthOverlay(true);
+  }
+  window.initAuth = initAuth;
+
+  // ============================================================
+  // ===== DB WRITE PATH — Phase 2.5 (est_document + approval) =====
+  // เขียนผ่าน Bearer token (Auth.authHeaders) — RLS อนุญาตเฉพาะผู้ใช้ภายในที่ valid
+  // best-effort: ถ้าไม่ได้ login/error → ไม่กระทบ flow client-side เดิม (localStorage)
+  // ลำดับ: doSave→saveEstDocument(draft) · Submit→submitForApproval(pending) · อนุมัติ/ปฏิเสธ→recordDecision
+  // ============================================================
+  const EST_NO_KEY = 'est_no_current';
+
+  // toast เล็กๆ มุมล่างขวา (ไม่บล็อก UI)
+  function dbNotify(msg, isErr) {
+    try {
+      let t = document.getElementById('dbToast');
+      if (!t) {
+        t = document.createElement('div'); t.id = 'dbToast';
+        t.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:10000;max-width:360px;padding:10px 14px;border-radius:8px;font-size:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);transition:opacity .3s;';
+        document.body.appendChild(t);
+      }
+      t.style.background = isErr ? '#fef2f2' : '#ecfdf5';
+      t.style.color = isErr ? '#b91c1c' : '#065f46';
+      t.style.border = '1px solid ' + (isErr ? '#fecaca' : '#a7f3d0');
+      t.textContent = (isErr ? '⚠ ' : '✓ ') + msg;
+      t.style.opacity = '1';
+      clearTimeout(t.__h); t.__h = setTimeout(() => { t.style.opacity = '0'; }, isErr ? 6000 : 3500);
+    } catch (e) { (isErr ? console.warn : console.info)('[db] ' + msg); }
+  }
+  window.dbNotify = dbNotify;
+
+  const DbWrite = {
+    estNo() {
+      let n = null;
+      try { n = localStorage.getItem(EST_NO_KEY); } catch (e) {}
+      if (!n) {
+        const d = new Date();
+        n = 'EST-' + d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(Math.floor(1000 + Math.random() * 9000));
+        try { localStorage.setItem(EST_NO_KEY, n); } catch (e) {}
+      }
+      return n;
+    },
+    _val(id) { const el = document.getElementById(id); return el ? el.value : null; },
+    _appUserId() { return (window.__appUser && window.__appUser.user_id) || null; },
+    _requiredLevel() {
+      const a = (window.__approval && window.__approval.approver) || '';
+      return a === 'Director' ? 'director' : a === 'C-Level' ? 'clevel' : a === 'CEO' ? 'ceo' : null;
+    },
+    _margin() { return +(((window.__approval && window.__approval.netMargin) || 0).toFixed(3)); },
+
+    // upsert est_document (PK est_no) — on_conflict merge
+    async saveEstDocument(status) {
+      if (!AUTH_CONFIG.enabled || !Auth.isAuthed()) return { skipped: true };
+      const headers = await Auth.authHeaders();
+      if (!headers) return { skipped: true };
+      headers['Prefer'] = 'resolution=merge-duplicates,return=minimal';
+      const row = {
+        est_no: this.estNo(),
+        project_name: this._val('projectName') || '(untitled)',
+        service_code: this._val('serviceType') || null,
+        sale_team: this._val('saleGroup') || null,
+        created_by: this._appUserId(),
+        project_value: Math.round(window.__projectValue || 0),
+        net_profit: Math.round(window.__netProfit || 0),
+        net_margin_pct: this._margin(),
+        required_level: this._requiredLevel(),
+        status: status || 'draft',
+        payload: (typeof buildDraftState === 'function') ? buildDraftState() : null
+      };
+      let res = await fetch(DB_CONFIG.url + '/rest/v1/est_document?on_conflict=est_no', { method: 'POST', headers, body: JSON.stringify(row) });
+      if (!res.ok) {
+        const txt = await res.text();
+        // FK ไม่ตรง (service_code/sale_team ยังไม่อยู่ใน master) → ลองใหม่แบบ null
+        if (/foreign key|violates|23503/i.test(txt)) {
+          row.service_code = null; row.sale_team = null;
+          res = await fetch(DB_CONFIG.url + '/rest/v1/est_document?on_conflict=est_no', { method: 'POST', headers, body: JSON.stringify(row) });
+        }
+        if (!res.ok) throw new Error('est_document ' + res.status + ': ' + ((txt || '').slice(0, 140)));
+      }
+      return { ok: true, est_no: row.est_no };
+    },
+
+    async _openRequest(estNo, headers) {
+      const r = await fetch(DB_CONFIG.url + '/rest/v1/approval_request?select=request_id,current_step,total_steps,status&status=eq.pending&est_no=eq.' + encodeURIComponent(estNo), { headers });
+      if (!r.ok) return null;
+      const rows = await r.json();
+      return Array.isArray(rows) && rows.length ? rows[0] : null;
+    },
+    async _log(requestId, stepNo, action, comment, headers) {
+      const body = { request_id: requestId, step_no: stepNo, step_role: currentUserRole,
+        actor_user: this._appUserId(), actor_name: (window.__appUser && window.__appUser.full_name) || null,
+        action, comment: comment || null };
+      const r = await fetch(DB_CONFIG.url + '/rest/v1/approval_log', { method: 'POST', headers, body: JSON.stringify(body) });
+      if (!r.ok) throw new Error('approval_log ' + r.status + ': ' + ((await r.text()) || '').slice(0, 140));
+    },
+
+    // ส่งขออนุมัติ: save(pending) → เปิด approval_request (ถ้ายังไม่มี) → log 'submitted'
+    async submitForApproval() {
+      if (!AUTH_CONFIG.enabled || !Auth.isAuthed()) { dbNotify('ต้องเข้าสู่ระบบก่อนส่งอนุมัติ', true); return { skipped: true }; }
+      const headers = await Auth.authHeaders();
+      if (!headers) return { skipped: true };
+      await this.saveEstDocument('pending');
+      const estNo = this.estNo();
+      let req = await this._openRequest(estNo, headers);
+      if (!req) {
+        const h2 = Object.assign({}, headers, { Prefer: 'return=representation' });
+        const total = (window.__approval && window.__approval.requiredSteps) || 1;
+        const body = { est_no: estNo, requested_by: this._appUserId(), net_margin_pct: this._margin(),
+          required_level: this._requiredLevel(), current_step: 1, total_steps: total, status: 'pending' };
+        const r = await fetch(DB_CONFIG.url + '/rest/v1/approval_request', { method: 'POST', headers: h2, body: JSON.stringify(body) });
+        if (!r.ok) throw new Error('approval_request ' + r.status + ': ' + ((await r.text()) || '').slice(0, 140));
+        req = (await r.json())[0];
+      }
+      await this._log(req.request_id, req.current_step || 1, 'submitted', '', headers);
+      return { ok: true, request_id: req.request_id };
+    },
+
+    // บันทึกการตัดสินของ approver (เรียกจาก handler เดิมหลัง renderPipeline)
+    async recordDecision(appAction, comment, stepIdx) {
+      if (!AUTH_CONFIG.enabled || !Auth.isAuthed()) return { skipped: true };
+      const headers = await Auth.authHeaders();
+      if (!headers) return { skipped: true };
+      const estNo = this.estNo();
+      let req = await this._openRequest(estNo, headers);
+      if (!req) { const s = await this.submitForApproval(); if (s.skipped) return s; req = { request_id: s.request_id, current_step: 1, total_steps: (window.__approval && window.__approval.requiredSteps) || 1 }; }
+      const map = { approved: 'approved', rejected: 'rejected', revision: 'returned' };
+      const dbAction = map[appAction] || 'commented';
+      const stepNo = (typeof stepIdx === 'number' ? stepIdx : (req.current_step - 1 || 0)) + 1;
+      await this._log(req.request_id, stepNo, dbAction, comment, headers);
+      const patch = Object.assign({}, headers, { Prefer: 'return=minimal' });
+      const total = req.total_steps || ((window.__approval && window.__approval.requiredSteps) || 1);
+      let reqStatus = 'pending', estStatus = 'pending', nextStep = stepNo;
+      if (appAction === 'approved') { if (stepNo >= total) { reqStatus = 'approved'; estStatus = 'approved'; } else { nextStep = stepNo + 1; } }
+      else if (appAction === 'rejected') { reqStatus = 'rejected'; estStatus = 'rejected'; }
+      else if (appAction === 'revision') { estStatus = 'pending'; nextStep = Math.max(1, stepNo - 1); }
+      const rqBody = { current_step: nextStep, status: reqStatus };
+      if (reqStatus !== 'pending') rqBody.closed_at = new Date().toISOString();
+      await fetch(DB_CONFIG.url + '/rest/v1/approval_request?request_id=eq.' + req.request_id, { method: 'PATCH', headers: patch, body: JSON.stringify(rqBody) });
+      await fetch(DB_CONFIG.url + '/rest/v1/est_document?est_no=eq.' + encodeURIComponent(estNo), { method: 'PATCH', headers: patch, body: JSON.stringify({ status: estStatus }) });
+      return { ok: true, est_status: estStatus };
+    }
+  };
+  window.DbWrite = DbWrite;
+
+  // wrapper ปุ่ม Submit (Tab header) — ส่งขออนุมัติลง DB
+  function submitForApproval() {
+    if (typeof DbWrite === 'undefined') return;
+    DbWrite.submitForApproval()
+      .then(r => { if (r && r.ok) dbNotify('ส่งขออนุมัติแล้ว · request #' + r.request_id); })
+      .catch(e => dbNotify('ส่งอนุมัติไม่สำเร็จ: ' + e.message, true));
+  }
+  window.submitForApproval = submitForApproval;
 
   // PostgREST คืนสูงสุด 1,000 แถว/ครั้ง → ดึงเป็นหน้าด้วย Range header (item มี 6,221 แถว)
   async function fetchTable(table) {
@@ -5361,6 +5711,7 @@ window.onload = function() {
     if (typeof renderPipeline === 'function') renderPipeline();
     if (typeof onGlobalRoleChange === 'function') onGlobalRoleChange(document.getElementById('globalUserRole')?.value || 'presale');
     if (typeof loadMasterData === 'function') loadMasterData(); // async — master จาก Supabase/cache (Phase 1)
+    if (typeof initAuth === 'function') initAuth(); // Phase 2.4 — gate ทำงานเมื่อ AUTH_CONFIG.enabled = true เท่านั้น
   }, 120);
 
   // ============================================================

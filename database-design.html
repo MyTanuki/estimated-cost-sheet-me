@@ -64,7 +64,7 @@
   <div class="sub">Phase 1: Master Data บน Supabase (PostgreSQL) · อ้างอิงแนวทาง Product System Blueprint (M02 Item Master / M04 Vendor)</div>
   <div class="meta">
     <span>ที่มาข้อมูล: (Rev.2.4.7) Feasibility 1toAll (Draft).xlsx</span>
-    <span>14 ตาราง (master 11 + transaction 3) · 6,328 แถว seed</span>
+    <span>18 ตาราง (master 11 + transaction 7) · 6,328 แถว seed + 14 ผู้ใช้</span>
     <span>ปรับปรุง: 12/06/2026</span>
   </div>
 </div></header>
@@ -155,6 +155,19 @@
       <ul><li><span class="pk">quote_no + line_no</span> PK ผสม</li><li><span class="fk">quote_no → quotation</span> (on delete cascade)</li><li><span class="fk">item_no → item</span> (nullable — บรรทัดอิสระ)</li><li>description · qty · unit_price · line_total</li><li>is_mrc (บรรทัดรายเดือน × term แล้ว)</li><li class="cm">trigger: ห้ามใช้ item ที่ blocked (BR-M08-006)</li></ul></div>
   </div>
 
+  <h3>Transaction Layer — User & Approval (migration #3: <code>db/schema3_user_approval.sql</code>)</h3>
+  <p style="font-size:13px;color:#666;">รองรับ approval process ตาม role model ในแอป (presale/sale/clevel/ceo) · RLS <b>deny-by-default</b> · ขอบเขต = เก็บ <b>audit trail + สถานะ</b> (การ route ตาม net margin คำนวณในแอป มีอยู่แล้ว) · seed ผู้อนุมัติจริง 14 คน</p>
+  <div class="grid">
+    <div class="ent" style="border-left-color:var(--rust);"><h4>app_user</h4><div class="d">ผู้ใช้ระบบอนุมัติ — standalone ยังไม่ผูก Supabase Auth</div>
+      <ul><li><span class="pk">user_id</span> uuid PK (default gen_random_uuid)</li><li>auth_uid uuid unique (เผื่อ map auth.users ภายหลัง)</li><li>email (unique ตาม lower) · full_name</li><li>role check(presale/sale/clevel/ceo)</li><li>c_level_role check(COO/CPO/COS) — เฉพาะ clevel</li><li><span class="fk">sale_team → sale_team.name</span></li><li>title · active · created_at · updated_at</li><li class="cm">check: (role=clevel) ⇔ มี c_level_role</li></ul></div>
+    <div class="ent" style="border-left-color:var(--rust);"><h4>est_document</h4><div class="d">ใบ Estimated Cost Sheet — สิ่งที่ถูกอนุมัติ แล้วแปลงเป็น quotation</div>
+      <ul><li><span class="pk">est_no</span> 'EST-YYYYMM-SEQ4' PK</li><li><span class="fk">customer_no → customer</span></li><li><span class="fk">service_code → service_type</span> (กำหนด threshold)</li><li><span class="fk">sale_team → sale_team</span> · <span class="fk">created_by → app_user</span></li><li>project_value · net_profit · net_margin_pct (snapshot)</li><li>required_level check(director/clevel/ceo)</li><li>status check(draft/pending/approved/rejected/converted/cancelled)</li><li><span class="fk">quote_no → quotation</span> (set เมื่อแปลง)</li><li>payload jsonb (snapshot ฟอร์มทั้งใบ)</li><li class="cm">trigger: touch updated_at</li></ul></div>
+    <div class="ent" style="border-left-color:var(--rust);"><h4>approval_request</h4><div class="d">คำขออนุมัติ 1 รายการต่อการส่ง 1 ครั้ง</div>
+      <ul><li><span class="pk">request_id</span> bigserial PK</li><li><span class="fk">est_no → est_document</span> (on delete cascade)</li><li><span class="fk">requested_by → app_user</span></li><li>net_margin_pct · required_level (snapshot)</li><li>current_step · total_steps</li><li>status check(pending/approved/rejected/cancelled)</li><li>opened_at · closed_at</li><li class="cm">unique partial: 1 คำขอ pending ต่อ est_no</li></ul></div>
+    <div class="ent" style="border-left-color:var(--rust);"><h4>approval_log</h4><div class="d">audit trail แต่ละก้าวในสายอนุมัติ</div>
+      <ul><li><span class="pk">log_id</span> bigserial PK</li><li><span class="fk">request_id → approval_request</span> (on delete cascade)</li><li>step_no · step_role check(presale/sale/clevel/ceo)</li><li><span class="fk">actor_user → app_user</span> · actor_name (snapshot)</li><li>action check(submitted/approved/rejected/returned/commented)</li><li>comment · acted_at</li></ul></div>
+  </div>
+
   <h3>การ map สู่ตัวแปรในแอป (applyMasterData)</h3>
   <table>
     <thead><tr><th>ตาราง DB</th><th>ตัวแปรใน index.html</th><th>ใช้ที่</th></tr></thead>
@@ -187,10 +200,14 @@
       <tr><td>BR-QT-002</td><td>ลูกค้า <code>blocked = true</code> สร้างใบเสนอราคาใหม่ไม่ได้ (trigger ที่ insert)</td><td><span class="sev E">Error</span></td></tr>
       <tr><td>BR-QT-003</td><td><code>valid_until ≥ quote_date</code> · <code>discount ≥ 0</code> · status/quote_type จำกัดด้วย check constraint</td><td><span class="sev E">Error</span></td></tr>
       <tr><td>BR-QT-004</td><td>ตาราง customer/quotation/quotation_line = RLS deny-by-default — publishable key เข้าถึงไม่ได้ เข้าผ่าน service role (server side) เท่านั้น จนกว่าจะมี Auth</td><td><span class="sev E">Error</span></td></tr>
+      <tr><td>BR-APV-001</td><td><code>app_user.role</code> จำกัด presale/sale/clevel/ceo ตรงกับ ADMIN_ROLES ในแอป · บังคับ <code>(role=clevel) ⇔ c_level_role not null</code></td><td><span class="sev E">Error</span></td></tr>
+      <tr><td>BR-APV-002</td><td>1 <code>est_document</code> มี <code>approval_request</code> ที่ <code>status=pending</code> ได้ไม่เกิน 1 (partial unique index) — กันส่งอนุมัติซ้ำซ้อน</td><td><span class="sev E">Error</span></td></tr>
+      <tr><td>BR-APV-003</td><td><code>est_document.net_margin_pct</code>/<code>required_level</code> เป็น <b>snapshot</b> ที่แอปคำนวณตอนส่ง — DB เก็บเพื่อ audit ไม่ re-route เอง (audit-trail-only)</td><td><span class="sev W">Warning</span></td></tr>
+      <tr><td>BR-APV-004</td><td>ตาราง app_user/est_document/approval_request/approval_log = RLS deny-by-default เช่นเดียวกับ migration #2</td><td><span class="sev E">Error</span></td></tr>
     </tbody>
   </table>
-  <div class="note">Phase 1 ยังไม่มีตาราง transaction — กฎ immutable ledger (BR-M05) ของ blueprint จะบังคับใช้เมื่อเพิ่ม
-  ตารางใบ EST/Quotation ใน Phase 2</div>
+  <div class="note">migration #3 เพิ่ม approval workflow แบบ <b>audit-trail-only</b> — กฎ immutable ledger (BR-M05) เต็มรูปแบบ
+  และ RLS ราย role จะบังคับใช้เมื่อเปิด Supabase Auth (Phase 2.4) ผ่าน <code>app_user.auth_uid = auth.uid()</code></div>
 </section>
 
 <!-- ============ TAB 4: ขั้นตอนติดตั้ง ============ -->
@@ -234,6 +251,11 @@
 <span class="hl">insert into customer (customer_no, name) values ('CUST-TEST-0001','ทดสอบ');</span>     <span class="cm">-- ผ่าน (รันใน SQL Editor = service role)</span>
 <span class="hl">delete from customer where customer_no = 'CUST-TEST-0001';</span><button class="copy" onclick="cp(this)">คัดลอก</button></pre>
 
+  <h3>Migration #3 — User & Approval (รองรับ approval process)</h3>
+  <pre><span class="cm">-- รันหลัง schema2 · วางเนื้อหา db/schema3_user_approval.sql ใน SQL Editor → Run แล้วตรวจ:</span>
+<span class="hl">select count(*) from information_schema.tables where table_schema='public';</span>  <span class="cm">-- = 18</span>
+<span class="hl">select role, count(*) from app_user group by role;</span>  <span class="cm">-- ceo 1 · clevel 3 · sale 6 · presale 4</span><button class="copy" onclick="cp(this)">คัดลอก</button></pre>
+
   <h3>การอัปเดตข้อมูลเมื่อมี Excel rev ใหม่</h3>
   <pre>python3 db/generate_seed.py <span class="hl">"(Rev.X.Y.Z) Feasibility 1toAll.xlsx"</span> &gt; db/seed.sql
 <span class="cm"># แล้ว Run seed.sql ใหม่ใน SQL Editor (สคริปต์ truncate + reload ให้เอง)</span><button class="copy" onclick="cp(this)">คัดลอก</button></pre>
@@ -245,10 +267,10 @@
   <table>
     <thead><tr><th style="width:60px;">ลำดับ</th><th>งาน</th><th>ตาราง/ส่วนที่เกี่ยว</th></tr></thead>
     <tbody>
-      <tr><td>2.1</td><td>ตาราง transaction: ใบ Estimated Cost Sheet + บรรทัดรายการ → เลิกเก็บ draft ใน localStorage</td><td class="mono">est_document, est_investment_line, est_mrc_line, est_install_line, est_opr_value</td></tr>
+      <tr><td>2.1</td><td>ตาราง EST — <b style="color:#1D7A4F;">✓ est_document สร้างแล้ว</b> (migration #3, เก็บ payload jsonb ทั้งใบ) เหลือ write path + แตกบรรทัดเป็นตารางย่อย</td><td class="mono">est_document ✓, est_investment_line, est_mrc_line, est_install_line</td></tr>
       <tr><td>2.2</td><td>Quotation + ลูกค้า — <b style="color:#1D7A4F;">✓ โครงสร้างสร้างแล้ว</b> (migration #2) เหลือ write path จากแอป + เลขรันเอกสาร</td><td class="mono">customer, quotation, quotation_line, doc_sequence</td></tr>
-      <tr><td>2.3</td><td>Approval pipeline จริง — log การอนุมัติ immutable ตาม BR-M05 ของ blueprint</td><td class="mono">approval_step, approval_log (no UPDATE/DELETE)</td></tr>
-      <tr><td>2.4</td><td>Supabase Auth + role mapping (presale/sale/clevel/ceo) แทน dropdown สิทธิ์</td><td class="mono">auth.users, user_role + RLS ต่อ role</td></tr>
+      <tr><td>2.3</td><td>Approval pipeline — <b style="color:#1D7A4F;">✓ โครงสร้าง audit-trail สร้างแล้ว</b> (migration #3) เหลือ write path จากแอป + บังคับ immutable (no UPDATE/DELETE บน approval_log) ตาม BR-M05</td><td class="mono">app_user ✓, approval_request ✓, approval_log ✓</td></tr>
+      <tr><td>2.4</td><td>Supabase Auth + role mapping (presale/sale/clevel/ceo) แทน dropdown สิทธิ์ — map ผ่าน <code>app_user.auth_uid</code> + RLS policy ราย role</td><td class="mono">auth.users → app_user.auth_uid + RLS</td></tr>
       <tr><td>2.5</td><td>UI render จาก DB: radio overhead, dropdown service/project/payment/staff</td><td class="mono">overhead_type, staff, project_type, payment_type</td></tr>
       <tr><td>2.6</td><td>ใช้ fx_rate คำนวณราคาทุนสกุล USD/CNY (เพิ่มคอลัมน์ currency ใน item)</td><td class="mono">item.currency, fx_rate</td></tr>
     </tbody>
