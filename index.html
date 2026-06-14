@@ -1696,20 +1696,20 @@
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td>Director-level</td><td>NP ≥ 30%</td>
+            <tr id="matrixRowDir">
+              <td>Director-level</td><td id="matrixRangeDir">NP ≥ 30%</td>
               <td>Director can approve</td>
-              <td style="color:var(--text-tertiary);">✗ Not met</td>
+              <td id="matrixStatusDir" style="color:var(--text-tertiary);">✗ Not met</td>
             </tr>
-            <tr>
-              <td>C-Level</td><td>NP ≥ 20%</td>
+            <tr id="matrixRowClevel">
+              <td>C-Level</td><td id="matrixRangeClevel">NP ≥ 20%</td>
               <td>COO approves</td>
-              <td style="color:var(--text-tertiary);">✗ Not met</td>
+              <td id="matrixStatusClevel" style="color:var(--text-tertiary);">✗ Not met</td>
             </tr>
-            <tr class="highlight">
-              <td>CEO-level</td><td>NP &lt; 20%</td>
+            <tr id="matrixRowCeo">
+              <td>CEO-level</td><td id="matrixRangeCeo">NP &lt; 20%</td>
               <td>Requires CEO approval</td>
-              <td>✓ <b>Current case</b></td>
+              <td id="matrixStatusCeo" style="color:var(--text-tertiary);">✗ Not met</td>
             </tr>
           </tbody>
         </table>
@@ -2489,7 +2489,7 @@
 
     // Phase 2.5 — best-effort: เขียนลง est_document ใน DB ด้วย (ไม่กระทบ flow เดิมถ้าไม่ได้ login)
     if (typeof DbWrite !== 'undefined' && AUTH_CONFIG.enabled && Auth.isAuthed()) {
-      DbWrite.saveEstDocument('draft')
+      DbWrite.saveEstDocument()
         .then(r => { if (r && r.ok) dbNotify('บันทึกลงฐานข้อมูลแล้ว · ' + r.est_no); })
         .catch(e => dbNotify('บันทึก DB ไม่สำเร็จ: ' + e.message, true));
     }
@@ -3587,10 +3587,11 @@
     return total;
   }
   // ASSUMPTION #1: OPR % base = Investment SALE total (contract sell value).
-  // Switch to .cost here if bonds/marketing should be computed on cost instead.
+  // ตัดสินใจ (2026-06-14): คงใช้ .sale ตามเดิม — แต่ "ตัด fallback 668,000 ทิ้ง"
+  // ถ้าไม่มี investment (sale=0) ฐาน = 0 → OPR% = 0 (ไม่เสกเลขปลอมขึ้นมา)
+  // (Excel ใช้ฐาน = investment COST = SUM V34:W43 — ถ้าต้องการตรง Excel เป๊ะ ค่อยเปลี่ยนเป็น .cost)
   function getOprBase() {
-    const b = getInvestmentTotals().sale;
-    return b > 0 ? b : 668000; // fall back to legacy base only when no rows
+    return getInvestmentTotals().sale;
   }
   function getContractTermMonths() {
     return parseInt(document.getElementById('globalContractTerm')?.value) || 36;
@@ -3684,6 +3685,19 @@
     setTxt('matrixRow2Label', group.name);
     const npCell = document.getElementById('matrixNPValue');
     if (npCell) npCell.textContent = netMargin.toFixed(1) + '% → ' + approver;
+
+    // ---- Decision matrix (Director/C-Level/CEO) — อัปเดตตาม margin จริง (เดิม hardcode CEO) ----
+    setTxt('matrixRangeDir', 'NP ≥ ' + group.dir + '%');
+    setTxt('matrixRangeClevel', 'NP ≥ ' + group.clevel + '%');
+    setTxt('matrixRangeCeo', 'NP < ' + group.clevel + '%');
+    const activeKey = approver === 'Director' ? 'Dir' : approver === 'C-Level' ? 'Clevel' : 'Ceo';
+    ['Dir', 'Clevel', 'Ceo'].forEach(k => {
+      const cell = document.getElementById('matrixStatus' + k);
+      const row = document.getElementById('matrixRow' + k);
+      const isCurrent = (k === activeKey);
+      if (cell) { cell.innerHTML = isCurrent ? '✓ <b>Current case</b>' : '✗ Not met'; cell.style.color = isCurrent ? '' : 'var(--text-tertiary)'; }
+      if (row) row.classList.toggle('highlight', isCurrent);
+    });
     // Highlight the active group row (row1=high AV group, row3=low SI group); row2 mirrors active
     const isLow = !!group.isLow;
     const row1np = document.getElementById('matrixRow1NP');
@@ -3736,7 +3750,10 @@
   }
   window.recalcSummary = recalcSummary;
   window.getLiveProjectValue = function () {
-    return (typeof window.__projectValue === 'number' && window.__projectValue > 0) ? window.__projectValue : 4223518;
+    if (typeof window.__projectValue === 'number' && window.__projectValue > 0) return window.__projectValue;
+    // ยังไม่ได้คำนวณ → ลอง recalc ครั้ง (ไม่ใช้เลข demo ปลอมอีกต่อไป)
+    try { const r = recalcSummary(); if (r && r.projectValue > 0) return r.projectValue; } catch (e) {}
+    return 0;
   };
 
   // ===== Initialize sample data for MRC, Install, PMCM =====
@@ -4365,25 +4382,10 @@
   // ===== TAB 9: QUOTATION MODULE =====
   // ============================================================
 
-  let quotations = [
-    {
-      no: 'QA2605-0278', estNo: 'EST-202605-001',
-      quoteType: 'onetime',
-      customer: 'Central Food Retail Co., Ltd.',
-      custId: 'CTD2605001',
-      custContact: 'คุณสุพัฒน์ เจริญสุข',
-      custAddress: '99 อาคารเซ็นทรัล ออฟฟิศ ถนนพระราม 9\nแขวงห้วยขวาง เขตห้วยขวาง\nกรุงเทพมหานคร 10310, Thailand',
-      project: 'Smart Meeting Room & Managed Connectivity',
-      amount: Math.round(window.getLiveProjectValue() * 1.07), amountExVat: Math.round(window.getLiveProjectValue()),
-      discount: 0,
-      status: 'sent', date: '2026-05-25', validUntil: '2026-06-25',
-      salesperson: 'Sutasinee Lertpongsuk',
-      payTerms: '30% มัดจำ · 70% เมื่อส่งมอบ', incVat: true,
-      contact: 'procurement@centralfoodretail.com',
-      remark: ''
-    }
-  ];
-  let qtIdCounter = 2;
+  // เริ่มว่าง — ใบเสนอราคาสร้างจริงผ่าน Convert EST → Quotation (อ่านข้อมูลจากฟอร์มจริง)
+  // (เดิม seed ตัวอย่าง 'Central Food Retail' + amount จาก fallback ปลอม → ทำให้ยอด/ลูกค้าไม่ตรงโปรเจกต์)
+  let quotations = [];
+  let qtIdCounter = 1;
 
   function fmtMoney(n) { return '฿' + Math.round(n).toLocaleString(); }
 
@@ -4456,6 +4458,16 @@
     if (modal) modal.style.display = 'flex';
     const dateEl = document.getElementById('convertQtDate');
     if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().slice(0, 10);
+    // est_no จริง (จาก DbWrite.estNo = ชุดเดียวกับ est_document/approval) + label ลูกค้า/โครงการจริง
+    const sel = document.getElementById('convertEstSelect');
+    if (sel && sel.options[0]) {
+      let estNo = sel.options[0].value;
+      try { if (typeof DbWrite !== 'undefined') estNo = DbWrite.estNo(); } catch (e) {}
+      sel.options[0].value = estNo;
+      const cust = (document.getElementById('custName')?.value || '-').trim();
+      const proj = (document.getElementById('projectName')?.value || '-').trim();
+      sel.options[0].textContent = estNo + ' — ' + cust + ' · ' + proj;
+    }
   }
   function closeConvertModal() {
     const modal = document.getElementById('convertModal');
@@ -4491,8 +4503,15 @@
       payTerms, incVat,
       contact: ''
     });
+    const newQt = quotations[0];
     closeConvertModal();
     renderQuotationList();
+    // Phase 2.5 — best-effort: เขียน customer + quotation + lines ลง DB
+    if (typeof DbWrite !== 'undefined' && AUTH_CONFIG.enabled && Auth.isAuthed()) {
+      DbWrite.saveQuotation(newQt)
+        .then(r => { if (r && r.ok) dbNotify('บันทึกใบเสนอราคาลง DB แล้ว · ' + r.quote_no + ' (' + r.lines + ' รายการ)'); })
+        .catch(e => dbNotify('บันทึกใบเสนอราคาไม่สำเร็จ: ' + e.message, true));
+    }
   }
 
   function deleteQuotation(no) {
@@ -5385,7 +5404,7 @@ window.onload = function() {
       await Auth.signInPassword(email, pw);
       const u = await Auth.loadAppUser();
       if (!u) { setAuthError('เข้าสู่ระบบสำเร็จ แต่ไม่พบสิทธิ์ผู้ใช้ — auth_uid ยังไม่ถูกผูกกับ app_user'); }
-      else { applyAuthedUser(u); showAuthOverlay(false); }
+      else { applyAuthedUser(u); showAuthOverlay(false); if (typeof DbWrite !== 'undefined') { try { await DbWrite.loadApprovalState(); } catch (e) {} try { await DbWrite.loadQuotations(); } catch (e) {} } }
     } catch (e) { setAuthError('เข้าสู่ระบบไม่สำเร็จ: ' + e.message); }
     finally { if (btn) btn.disabled = false; }
   }
@@ -5409,7 +5428,11 @@ window.onload = function() {
     Auth._load();
     if (Auth.isAuthed()) {
       const u = await Auth.loadAppUser();
-      if (u) { applyAuthedUser(u); showAuthOverlay(false); return; }
+      if (u) {
+        applyAuthedUser(u); showAuthOverlay(false);
+        if (typeof DbWrite !== 'undefined') { try { await DbWrite.loadApprovalState(); } catch (e) {} try { await DbWrite.loadQuotations(); } catch (e) {} }
+        return;
+      }
     }
     showAuthOverlay(true);
   }
@@ -5477,9 +5500,11 @@ window.onload = function() {
         net_profit: Math.round(window.__netProfit || 0),
         net_margin_pct: this._margin(),
         required_level: this._requiredLevel(),
-        status: status || 'draft',
         payload: (typeof buildDraftState === 'function') ? buildDraftState() : null
       };
+      // ส่ง status เฉพาะเมื่อระบุชัด (submit→pending) — save ปกติ "ไม่ส่ง" เพื่อไม่ทับสถานะอนุมัติเดิม
+      // (row ใหม่ใช้ค่า default 'draft' ของ DB; row เดิมที่ pending/approved/rejected จะคงไว้)
+      if (status) row.status = status;
       let res = await fetch(DB_CONFIG.url + '/rest/v1/est_document?on_conflict=est_no', { method: 'POST', headers, body: JSON.stringify(row) });
       if (!res.ok) {
         const txt = await res.text();
@@ -5551,6 +5576,168 @@ window.onload = function() {
       await fetch(DB_CONFIG.url + '/rest/v1/approval_request?request_id=eq.' + req.request_id, { method: 'PATCH', headers: patch, body: JSON.stringify(rqBody) });
       await fetch(DB_CONFIG.url + '/rest/v1/est_document?est_no=eq.' + encodeURIComponent(estNo), { method: 'PATCH', headers: patch, body: JSON.stringify({ status: estStatus }) });
       return { ok: true, est_status: estStatus };
+    },
+
+    _fmtTs(iso) {
+      try { const d = new Date(iso); return (typeof fmtDateDMY === 'function' ? fmtDateDMY(d) : d.toLocaleDateString()) + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+      catch (e) { return ''; }
+    },
+
+    // สร้าง discussion thread (#approvalThread) ใหม่จาก approval_log ใน DB (ล่าสุดอยู่บน)
+    _renderThread(logs) {
+      const thread = document.getElementById('approvalThread');
+      if (!thread || !Array.isArray(logs) || !logs.length) return;
+      const actMap = { approved: 'approved', rejected: 'rejected', returned: 'revision', submitted: 'submitted', commented: 'commented' };
+      const meta = {
+        submitted: { label: 'Submitted',          bg: 'var(--bg-secondary)', fg: 'var(--text-secondary)' },
+        approved:  { label: 'Approved',            bg: 'var(--success-light)', fg: 'var(--success-dark)' },
+        revision:  { label: 'Revision Requested',  bg: 'var(--warning-light)', fg: 'var(--warning-dark)' },
+        rejected:  { label: 'Rejected',            bg: 'var(--danger-light)', fg: 'var(--danger)' },
+        commented: { label: 'Comment',             bg: 'var(--bg-secondary)', fg: 'var(--text-secondary)' }
+      };
+      const esc = (typeof escapeHtml === 'function') ? escapeHtml : (s => String(s == null ? '' : s));
+      thread.innerHTML = '';
+      logs.slice().sort((a, b) => new Date(a.acted_at) - new Date(b.acted_at)).forEach(l => {
+        const a = actMap[l.action] || 'commented';
+        const m = meta[a] || meta.commented;
+        const idx = (l.step_no || 1) - 1;
+        const ps = (typeof PIPELINE_STEPS !== 'undefined' && PIPELINE_STEPS[idx]) ? PIPELINE_STEPS[idx] : null;
+        const name = l.actor_name || (ps && ps.name) || '?';
+        const initials = (ps && ps.initials) || name.split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase();
+        const roleTxt = (ps && ps.role) || l.step_role || '';
+        const ts = this._fmtTs(l.acted_at);
+        const div = document.createElement('div');
+        div.className = 'comment';
+        div.style.cssText = 'background:' + m.bg + ';';
+        div.innerHTML = '<div style="display:flex;gap:10px;">' +
+          '<div class="avatar" style="background:' + m.fg + ';color:white;flex-shrink:0;">' + initials + '</div>' +
+          '<div style="flex:1;"><div class="comment-header">' +
+            '<span style="font-size:12px;font-weight:500;color:' + m.fg + ';">' + esc(name) + '</span>' +
+            '<span class="badge" style="background:' + m.bg + ';color:' + m.fg + ';border:1px solid ' + m.fg + ';">' + roleTxt + ' · ' + m.label + '</span>' +
+            '<span style="font-size:10px;color:' + m.fg + ';margin-left:auto;">' + ts + '</span>' +
+          '</div>' + (l.comment ? '<div style="font-size:12px;color:' + m.fg + ';margin-top:4px;">' + esc(l.comment) + '</div>' : '') + '</div></div>';
+        thread.insertBefore(div, thread.firstChild); // ล่าสุดอยู่บนสุด
+      });
+    },
+
+    // อ่านสถานะอนุมัติจริงจาก DB → ประกอบ pipelineState ใหม่ (two-way sync)
+    // ทำให้ทุกผู้ใช้เห็น step ปัจจุบันตรงกัน (ไม่ใช่ค่า demo คงที่ในไฟล์)
+    async loadApprovalState() {
+      if (!AUTH_CONFIG.enabled || !Auth.isAuthed()) return { skipped: true };
+      const headers = await Auth.authHeaders();
+      if (!headers || typeof pipelineState === 'undefined') return { skipped: true };
+      const estNo = this.estNo();
+      // est_document status
+      let edStatus = null;
+      try { const ed = await fetch(DB_CONFIG.url + '/rest/v1/est_document?select=status&est_no=eq.' + encodeURIComponent(estNo), { headers }); const er = await ed.json(); if (Array.isArray(er) && er.length) edStatus = er[0].status; } catch (e) {}
+      // request ล่าสุด
+      let req = null;
+      try { const rq = await fetch(DB_CONFIG.url + '/rest/v1/approval_request?select=request_id,current_step,total_steps,status&est_no=eq.' + encodeURIComponent(estNo) + '&order=opened_at.desc&limit=1', { headers }); const rr = await rq.json(); if (Array.isArray(rr) && rr.length) req = rr[0]; } catch (e) {}
+      if (!req) return { skipped: true, reason: 'no request in DB (ยังไม่เคยส่งอนุมัติ)' };
+      // logs ของ request นั้น
+      let logs = [];
+      try { const lg = await fetch(DB_CONFIG.url + '/rest/v1/approval_log?select=step_no,step_role,action,actor_name,comment,acted_at&request_id=eq.' + req.request_id + '&order=acted_at.asc', { headers }); logs = await lg.json(); if (!Array.isArray(logs)) logs = []; } catch (e) {}
+
+      const total = req.total_steps || (window.__approval && window.__approval.requiredSteps) || pipelineState.steps.length;
+      const actMap = { approved: 'approved', rejected: 'rejected', returned: 'revision', submitted: 'submitted', commented: 'commented' };
+      // reset
+      pipelineState.steps.forEach(s => { s.status = 'waiting'; s.ts = null; s.comment = ''; s.history = []; });
+      logs.forEach(l => {
+        const idx = (l.step_no || 1) - 1;
+        if (idx < 0 || idx >= pipelineState.steps.length) return;
+        pipelineState.steps[idx].history.push({ action: actMap[l.action] || l.action, ts: this._fmtTs(l.acted_at), comment: l.comment || '', actor: l.actor_name });
+        if (l.action === 'approved') { pipelineState.steps[idx].status = 'done'; pipelineState.steps[idx].ts = this._fmtTs(l.acted_at); pipelineState.steps[idx].comment = l.comment || ''; }
+        else if (l.action === 'rejected') { pipelineState.steps[idx].status = 'rejected'; }
+      });
+      // ก่อน step ที่ done ล่าสุด → ถือว่า done หมด (เผื่อ step 1 ไม่ถูกบันทึกใน DB)
+      let maxDone = -1; pipelineState.steps.forEach((s, i) => { if (s.status === 'done') maxDone = i; });
+      for (let i = 0; i < maxDone; i++) if (pipelineState.steps[i].status === 'waiting') pipelineState.steps[i].status = 'done';
+      // overall
+      if (edStatus === 'approved' || req.status === 'approved') {
+        pipelineState.overallStatus = 'approved';
+        for (let i = 0; i < total && i < pipelineState.steps.length; i++) pipelineState.steps[i].status = 'done';
+      } else if (edStatus === 'rejected' || req.status === 'rejected') {
+        pipelineState.overallStatus = 'rejected';
+      } else {
+        pipelineState.overallStatus = 'in_progress';
+        const cur = (req.current_step || 1) - 1;
+        if (pipelineState.steps[cur] && pipelineState.steps[cur].status !== 'done') pipelineState.steps[cur].status = 'current';
+      }
+      try { this._renderThread(logs); } catch (e) {}
+      try { if (typeof renderPipeline === 'function') renderPipeline(); } catch (e) {}
+      try { if (typeof updateApprovalGate === 'function') updateApprovalGate(); } catch (e) {}
+      return { ok: true, overall: pipelineState.overallStatus, est_status: edStatus };
+    },
+
+    // ---- Quotation write path (customer → quotation → quotation_line) ----
+    _slug(s) { let h = 0; const str = String(s || ''); for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0; return h.toString(36).toUpperCase(); },
+
+    // สร้างบรรทัดใบเสนอราคาจาก investment (one-time) + MRC (รายเดือน); item_no=null กัน FK/blocked-trigger
+    _buildQuotationLines(quoteNo) {
+      const lines = []; let n = 0;
+      try { (investmentRows || []).forEach(r => { const qty = parseFloat(r.unit) || 0, up = parseFloat(r.salePerUnit) || 0; if (qty || up) lines.push({ quote_no: quoteNo, line_no: ++n, item_no: null, description: (r.code ? r.code + ' · ' : '') + (r.desc || '-'), qty, unit_price: up, line_total: Math.round(qty * up), is_mrc: false }); }); } catch (e) {}
+      try { if (mrcManager && mrcManager.state) mrcManager.state.rows.forEach(r => { const qty = parseFloat(r.unit) || 0, up = parseFloat(r.salePerMonth) || 0; if (qty || up) lines.push({ quote_no: quoteNo, line_no: ++n, item_no: null, description: (r.code ? r.code + ' · ' : '') + (r.desc || '-') + ' (MRC/เดือน)', qty, unit_price: up, line_total: Math.round(qty * up), is_mrc: true }); }); } catch (e) {}
+      if (!lines.length) { const v = Math.round(window.getLiveProjectValue() || 0); lines.push({ quote_no: quoteNo, line_no: 1, item_no: null, description: (document.getElementById('projectName')?.value || 'Project'), qty: 1, unit_price: v, line_total: v, is_mrc: false }); }
+      return lines;
+    },
+
+    // upsert customer → quotation → lines (best-effort, ผ่าน Bearer + RLS)
+    async saveQuotation(q) {
+      if (!AUTH_CONFIG.enabled || !Auth.isAuthed()) return { skipped: true };
+      const headers = await Auth.authHeaders();
+      if (!headers) return { skipped: true };
+      const merge = Object.assign({}, headers, { Prefer: 'resolution=merge-duplicates,return=minimal' });
+      const ins = Object.assign({}, headers, { Prefer: 'return=minimal' });
+      const custName = (q.customer || '-').trim();
+      const custNo = (q.custId && q.custId.trim()) ? q.custId.trim().slice(0, 20) : ('CUST-' + this._slug(custName)).slice(0, 20);
+      // 1) customer (NOT NULL FK ของ quotation)
+      let cr = await fetch(DB_CONFIG.url + '/rest/v1/customer?on_conflict=customer_no', { method: 'POST', headers: merge, body: JSON.stringify({ customer_no: custNo, name: custName }) });
+      if (!cr.ok) throw new Error('customer ' + cr.status + ': ' + ((await cr.text()) || '').slice(0, 140));
+      // 2) quotation header
+      const exVat = Math.round(q.amountExVat || 0);
+      const disc = Math.round(q.discount || 0);
+      const row = {
+        quote_no: q.no, est_no: q.estNo || null, customer_no: custNo,
+        project_name: q.project || '-', quote_type: q.quoteType || 'onetime',
+        status: q.status || 'draft', quote_date: q.date, valid_until: q.validUntil,
+        amount_ex_vat: exVat, discount: disc, vat_pct: 7,
+        amount_inc_vat: Math.round(Math.max(0, exVat - disc) * 1.07),
+        pay_terms: q.payTerms || null, salesperson: q.salesperson || null, remark: q.remark || null
+      };
+      let qr = await fetch(DB_CONFIG.url + '/rest/v1/quotation?on_conflict=quote_no', { method: 'POST', headers: merge, body: JSON.stringify(row) });
+      if (!qr.ok) throw new Error('quotation ' + qr.status + ': ' + ((await qr.text()) || '').slice(0, 140));
+      // 3) lines (upsert ตาม PK quote_no,line_no — ไม่ DELETE เพราะ RLS delete=clevel/ceo)
+      const lines = this._buildQuotationLines(q.no);
+      if (lines.length) {
+        const lr = await fetch(DB_CONFIG.url + '/rest/v1/quotation_line?on_conflict=quote_no,line_no', { method: 'POST', headers: merge, body: JSON.stringify(lines) });
+        if (!lr.ok) throw new Error('quotation_line ' + lr.status + ': ' + ((await lr.text()) || '').slice(0, 140));
+      }
+      return { ok: true, quote_no: q.no, customer_no: custNo, lines: lines.length };
+    },
+
+    // อ่านใบเสนอราคาจาก DB (join customer) → แทนที่ quotations[] + render (two-way sync)
+    async loadQuotations() {
+      if (!AUTH_CONFIG.enabled || !Auth.isAuthed()) return { skipped: true };
+      const headers = await Auth.authHeaders();
+      if (!headers) return { skipped: true };
+      const sel = 'quote_no,est_no,customer_no,project_name,quote_type,status,quote_date,valid_until,amount_ex_vat,discount,amount_inc_vat,pay_terms,salesperson,remark,customer(name)';
+      let rows;
+      try {
+        const r = await fetch(DB_CONFIG.url + '/rest/v1/quotation?select=' + encodeURIComponent(sel) + '&order=quote_date.desc,quote_no.desc', { headers });
+        if (!r.ok) return { skipped: true, error: r.status };
+        rows = await r.json();
+      } catch (e) { return { skipped: true, error: e.message }; }
+      if (!Array.isArray(rows)) return { skipped: true };
+      // map DB → รูปแบบ object ที่ renderQuotationList/printQuotation ใช้
+      quotations = rows.map(x => ({
+        no: x.quote_no, estNo: x.est_no || '', customer: (x.customer && x.customer.name) || x.customer_no || '-',
+        custId: x.customer_no || '', project: x.project_name || '-', quoteType: x.quote_type || 'onetime',
+        status: x.status || 'draft', date: x.quote_date, validUntil: x.valid_until,
+        amountExVat: +x.amount_ex_vat || 0, discount: +x.discount || 0, amount: +x.amount_inc_vat || 0,
+        payTerms: x.pay_terms || '', salesperson: x.salesperson || '', remark: x.remark || '', incVat: true, contact: ''
+      }));
+      try { if (typeof renderQuotationList === 'function') renderQuotationList(); } catch (e) {}
+      return { ok: true, count: quotations.length };
     }
   };
   window.DbWrite = DbWrite;
