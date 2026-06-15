@@ -603,6 +603,19 @@
     </div>
   </div>
 
+  <!-- ===== วางตาราง Investment / Monthly จาก Excel (multi-column, คั่นด้วย Tab) ===== -->
+  <div id="tablePasteModal" style="display:none; position:fixed; inset:0; z-index:9998; background:rgba(15,23,42,0.45); align-items:center; justify-content:center;">
+    <div style="width:600px; max-width:94vw; background:white; border-radius:12px; box-shadow:0 20px 50px rgba(0,0,0,0.3); padding:20px; box-sizing:border-box;">
+      <div id="tablePasteTitle" style="font-size:16px; font-weight:700; color:var(--primary-dark); margin-bottom:4px;">วางรายการจาก Excel</div>
+      <div style="font-size:11px; color:var(--text-secondary); margin-bottom:10px;">คัดลอก 6 คอลัมน์จาก Excel ตามลำดับ: <b>Vendor · Code · Description · Unit · Cost · Sale</b> (คั่นด้วย Tab) · 1 บรรทัด = 1 แถว · เพิ่มต่อท้ายของเดิม</div>
+      <textarea id="tablePasteText" rows="9" placeholder="วางหลายเซลล์/หลายบรรทัดจาก Excel ที่นี่…" style="width:100%; box-sizing:border-box; padding:8px 10px; border:1px solid var(--border-strong); border-radius:6px; font-family:inherit; font-size:12px; resize:vertical; white-space:pre;"></textarea>
+      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
+        <button class="btn" onclick="closeTablePaste()">ยกเลิก</button>
+        <button class="btn btn-primary" onclick="applyTablePaste()"><i class="ti ti-plus"></i> นำเข้า</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Tab Navigation -->
   <div class="tab-nav" id="tabNav">
     <div class="tab-item active" data-tab="1"><span class="tab-num">1</span> Header</div>
@@ -1043,6 +1056,7 @@
         <div class="section-bar" style="background: var(--primary);"></div>
         <div class="section-title">Investment Cost (OTC)</div>
         <div class="section-meta">
+          <button class="btn btn-sm" onclick="openPasteInvestment()" style="gap:4px;"><i class="ti ti-clipboard-text"></i> วางจาก Excel</button>
           <button class="btn btn-sm" onclick="addEmptyRow()"><i class="ti ti-plus"></i> Add empty row</button>
           <button class="btn btn-sm"><i class="ti ti-upload"></i> Import Excel</button>
         </div>
@@ -1466,6 +1480,7 @@
         <div class="section-bar" style="background:var(--primary);"></div>
         <div class="section-title">Monthly Cost Table</div>
         <div class="section-meta">
+          <button class="btn btn-sm" onclick="openPasteMrc()" style="gap:4px;"><i class="ti ti-clipboard-text"></i> วางจาก Excel</button>
           <button class="btn btn-sm" onclick="addEmptyMrcRow()"><i class="ti ti-plus"></i> Add MRC row</button>
         </div>
       </div>
@@ -6195,6 +6210,46 @@ window.onload = function() {
   window.openPasteServiceModal = openPasteServiceModal;
   window.closePasteServiceModal = closePasteServiceModal;
   window.applyServiceLinePaste = applyServiceLinePaste;
+
+  // วางตาราง Investment / Monthly จาก Excel — 6 คอลัมน์ tab-separated: Vendor·Code·Description·Unit·Cost·Sale
+  let _tablePasteTarget = 'investment';
+  function openTablePaste(target) {
+    _tablePasteTarget = target;
+    const m = document.getElementById('tablePasteModal'); if (m) m.style.display = 'flex';
+    const ta = document.getElementById('tablePasteText'); if (ta) { ta.value = ''; ta.focus(); }
+    const title = document.getElementById('tablePasteTitle');
+    if (title) title.textContent = target === 'mrc' ? 'วางรายการ Monthly (MRC) จาก Excel' : 'วางรายการ Investment จาก Excel';
+  }
+  function openPasteInvestment() { openTablePaste('investment'); }
+  function openPasteMrc() { openTablePaste('mrc'); }
+  function closeTablePaste() { const m = document.getElementById('tablePasteModal'); if (m) m.style.display = 'none'; }
+  function applyTablePaste() {
+    const ta = document.getElementById('tablePasteText');
+    const lines = (ta ? ta.value : '').replace(/\r/g, '').split('\n').filter(l => l.trim() !== '');
+    if (!lines.length) { closeTablePaste(); return; }
+    const num = (v) => { const n = (typeof parseNum === 'function') ? parseNum(v) : parseFloat((v || '').replace(/,/g, '')); return isNaN(n) ? 0 : n; };
+    markDirty();
+    let added = 0;
+    lines.forEach(l => {
+      const c = l.split('\t');
+      const vendor = (c[0] || '').trim(), code = (c[1] || '').trim(), desc = (c[2] || '').trim();
+      const unit = num(c[3]) || 1, cost = num(c[4]), sale = num(c[5]);
+      if (_tablePasteTarget === 'mrc') {
+        mrcManager.state.rows.push({ id: ++mrcManager.state.counter, vendor, code, desc, unit, costPerMonth: cost, salePerMonth: sale });
+      } else {
+        investmentRows.push({ id: ++rowIdCounter, vendor, code, desc, unit, costPerUnit: cost, salePerUnit: sale, inQuote: true });
+      }
+      added++;
+    });
+    if (_tablePasteTarget === 'mrc') { mrcManager.render(); } else { renderInvestmentRows(); }
+    if (typeof recalcAll === 'function') recalcAll();
+    closeTablePaste();
+    if (typeof dbNotify === 'function') dbNotify('นำเข้า ' + added + ' แถวจาก Excel แล้ว');
+  }
+  window.openPasteInvestment = openPasteInvestment;
+  window.openPasteMrc = openPasteMrc;
+  window.closeTablePaste = closeTablePaste;
+  window.applyTablePaste = applyTablePaste;
   function insertServiceLine(afterId) {
     markDirty();
     const idx = serviceLines.findIndex(l => l.id === afterId);
