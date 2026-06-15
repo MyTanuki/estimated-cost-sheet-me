@@ -912,7 +912,7 @@
             </div>
           </label>
           <label style="display:flex; align-items:center; gap:10px; padding:10px 12px; background:var(--bg-secondary); border-radius:var(--radius-md); cursor:pointer;">
-            <input type="checkbox" id="chkTelecomLicense" onchange="updateOprTotal()">
+            <input type="checkbox" id="chkTelecomLicense" onchange="oprOverride.lic=null; updateOprTotal()">
             <i class="ti ti-license" style="font-size:16px; color:var(--text-tertiary);"></i>
             <div>
               <div style="font-size:12px; font-weight:500;">บริการภายใต้ใบอนุญาตโทรคมนาคม</div>
@@ -1324,7 +1324,7 @@
             <span class="pct-value" id="opr10-pct">1.0%</span>
           </div>
           <div class="opr-amount" id="opr10-amount">฿6,680</div>
-          <div>
+          <div id="opr10-lock">
             <span class="opr-role-badge locked" style="background:#F1EFE8; color:var(--text-secondary); border-color:var(--border);">
               <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               Auto
@@ -1341,11 +1341,11 @@
           </div>
           <div style="text-align:right; color:var(--text-secondary); font-size:11px;" class="opr-base-ref">฿668,000</div>
           <div class="pct-slider">
-            <input type="range" min="0" max="2" step="2" value="0" disabled style="opacity:0.4; cursor:not-allowed;" id="opr11-slider">
+            <input type="range" min="0" max="5" step="0.1" value="0" disabled style="opacity:0.4; cursor:not-allowed;" id="opr11-slider">
             <span class="pct-value" id="opr11-pct">0.0%</span>
           </div>
           <div class="opr-amount" id="opr11-amount" style="color:var(--text-tertiary);">฿0</div>
-          <div>
+          <div id="opr11-lock">
             <span class="opr-role-badge locked" style="background:#F1EFE8; color:var(--text-secondary); border-color:var(--border);">
               <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               Tab 2
@@ -1377,7 +1377,7 @@
             <span class="pct-value" style="color:var(--info);" id="opr13-pct">5.0%</span>
           </div>
           <div class="opr-amount" style="color:var(--info-dark);" id="opr13-amount">฿33,400</div>
-          <div>
+          <div id="opr13-lock">
             <span class="opr-role-badge locked" style="background:var(--info-light); color:var(--info); border-color:var(--info);">
               <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               Policy
@@ -2215,6 +2215,8 @@
 
   function onServiceChange() {
     // Marketing % (OPR-100010) + approval thresholds เปลี่ยนตาม service → คำนวณใหม่ทั้งสาย
+    // เปลี่ยน Service Type → ล้าง override การตลาด กลับไปใช้ค่า auto ของ service ใหม่
+    if (typeof oprOverride !== 'undefined') oprOverride.mkt = null;
     if (typeof recalcAll === 'function') recalcAll();
     if (typeof updatePipelineNames === 'function') updatePipelineNames();
   }
@@ -2300,6 +2302,17 @@
   const ROLE_LABELS = { presale:'Presale (SA)', sale:'Sale / Head of Sales', clevel:'C-Level (COO)', ceo:'CEO' };
   let currentUserRole = 'presale';
 
+  // Manual admin overrides for auto-computed OPR % (C-Level/CEO only).
+  // null = use auto value (marketing from Service Type, license 2%, overhead from Tab 2).
+  // Cleared back to null when the underlying driver changes (Service Type / Telecom checkbox / overhead radio).
+  let oprOverride = { mkt: null, lic: null, oh: null };
+  // OPR rows that admins may override (in addition to OPR-100007 interest, which is already a free slider)
+  const OPR_ADMIN_ROWS = [
+    { n: '10', key: 'mkt' },   // Marketing
+    { n: '11', key: 'lic' },   // Telecom license fee
+    { n: '13', key: 'oh' },    // Overhead
+  ];
+
   // Map pipeline step (by role text in PIPELINE_STEPS) → the app role that may act on it
   const STEP_ROLE_MAP = { 'SA Manager':'presale', 'Head of Sales':'sale', 'COO':'clevel', 'CPO':'clevel', 'COS':'clevel', 'C-Level':'clevel', 'CEO':'ceo' };
 
@@ -2340,14 +2353,53 @@
     if (notice && noticeText) {
       if (!canEdit) {
         notice.style.display = 'flex';
-        noticeText.textContent = `สิทธิ์ "${ROLE_LABELS[role]}" — ดูได้อย่างเดียว · ค่าดอกเบี้ยแก้ได้เฉพาะ C-Level (COO)/CEO · Bid Bond/Performance Bond กำหนดจากตัวเลือกใน Tab 2`;
+        noticeText.textContent = `สิทธิ์ "${ROLE_LABELS[role]}" — ดูได้อย่างเดียว · ค่าดอกเบี้ย/การตลาด/ค่าธรรมเนียมใบอนุญาต/Overhead แก้ได้เฉพาะ C-Level (COO)/CEO · Bid Bond/Performance Bond กำหนดจากตัวเลือกใน Tab 2`;
       } else {
         notice.style.display = 'none';
       }
     }
+    // อัปเดต lock/unlock + badge ของแถว OPR ที่ admin แก้ได้ (การตลาด/ใบอนุญาต/Overhead)
+    if (typeof refreshOprAdminUI === 'function') refreshOprAdminUI();
   }
 
-  // Slider events for opr7 (opr8/9 ปิดถาวร — auto จาก Tab 2)
+  // Lock/unlock + badge for admin-editable OPR rows (marketing/license/overhead).
+  // C-Level/CEO may edit; everyone else is read-only. License row is only editable
+  // when the Telecom License option is enabled in Tab 2.
+  function refreshOprAdminUI() {
+    const canEdit = ADMIN_ROLES.includes(currentUserRole || 'presale');
+    const licChecked = document.getElementById('chkTelecomLicense')?.checked || false;
+    OPR_ADMIN_ROWS.forEach(({ n, key }) => {
+      const slider = document.getElementById(`opr${n}-slider`);
+      const lock = document.getElementById(`opr${n}-lock`);
+      const rowEditable = canEdit && (key !== 'lic' || licChecked);
+      if (slider) {
+        slider.disabled = !rowEditable;
+        slider.style.opacity = rowEditable ? '1' : '0.4';
+        slider.style.cursor = rowEditable ? 'pointer' : 'not-allowed';
+      }
+      if (lock) {
+        const hasOv = oprOverride[key] != null;
+        if (!canEdit) {
+          lock.innerHTML = `<span class="opr-role-badge locked">${LOCK_SVG} C-Level+</span>`;
+        } else if (key === 'lic' && !licChecked) {
+          lock.innerHTML = `<span class="opr-role-badge locked">${LOCK_SVG} Tab 2</span>`;
+        } else if (hasOv) {
+          lock.innerHTML = `<span class="opr-role-badge unlocked" style="cursor:pointer;" title="คืนค่าอัตโนมัติ" onclick="oprResetOverride('${key}')">${UNLOCK_SVG} แก้เอง · ↺ auto</span>`;
+        } else {
+          lock.innerHTML = `<span class="opr-role-badge unlocked">${UNLOCK_SVG} แก้ไขได้</span>`;
+        }
+      }
+    });
+  }
+  // Clear a manual override → row reverts to its auto value on next recalc
+  function oprResetOverride(key) {
+    if (oprOverride && key in oprOverride) oprOverride[key] = null;
+    if (typeof markDirty === 'function') markDirty();
+    if (typeof updateOprTotal === 'function') updateOprTotal();
+  }
+  window.oprResetOverride = oprResetOverride;
+
+  // Slider events: opr7 (interest) + opr10/11/13 (admin overrides). opr8/9 ปิดถาวร — auto จาก Tab 2
   document.addEventListener('input', function(e) {
     if (e.target.id === 'opr7-slider') {
       const base = getOprBase();
@@ -2358,6 +2410,15 @@
       if (amtEl) amtEl.textContent = '฿' + Math.round(base * pct / 100).toLocaleString();
       if (pctEl) pctEl.textContent = pct.toFixed(1) + '%';
       updateOprTotal();
+      return;
+    }
+    const ov = { 'opr10-slider': 'mkt', 'opr11-slider': 'lic', 'opr13-slider': 'oh' }[e.target.id];
+    if (ov) {
+      // Only admins reach this (non-admin sliders are disabled), but guard anyway
+      if (!ADMIN_ROLES.includes(currentUserRole || 'presale')) return;
+      oprOverride[ov] = parseFloat(e.target.value);
+      if (typeof markDirty === 'function') markDirty();
+      updateOprTotal(); // recomputes amounts + KPI and refreshes badges
     }
   });
 
@@ -2404,9 +2465,9 @@
     const perfChecked = document.getElementById('chkPerfBond')?.checked || false;
     const pct9 = perfChecked ? 5 : 0;
 
-    // License 2%: only if checked
+    // License 2%: only if checked. C-Level/CEO may override the % (oprOverride.lic).
     const licChecked = document.getElementById('chkTelecomLicense')?.checked || false;
-    const pctLic = licChecked ? 2 : 0;
+    const pctLic = licChecked ? (oprOverride.lic != null ? oprOverride.lic : 2) : 0;
 
     // Update OPR-100008 row visual
     const opr8Pct = document.getElementById('opr8-pct');
@@ -2430,26 +2491,34 @@
     const opr11Amt = document.getElementById('opr11-amount');
     const opr11Slider = document.getElementById('opr11-slider');
     if (opr11Row) opr11Row.style.opacity = licChecked ? '1' : '0.4';
-    if (opr11Pct) opr11Pct.textContent = licChecked ? '2.0%' : '0.0%';
+    if (opr11Pct) opr11Pct.textContent = pctLic.toFixed(1) + '%';
     if (opr11Amt) {
-      opr11Amt.textContent = licChecked ? '฿' + Math.round(pvEx * 2 / 100).toLocaleString() : '฿0'; // % ของมูลค่าโครงการ (ไม่รวม VAT)
+      opr11Amt.textContent = licChecked ? '฿' + Math.round(pvEx * pctLic / 100).toLocaleString() : '฿0'; // % ของมูลค่าโครงการ (ไม่รวม VAT)
       opr11Amt.style.color = licChecked ? '' : 'var(--text-tertiary)';
     }
-    if (opr11Slider) opr11Slider.value = licChecked ? 2 : 0;
+    if (opr11Slider) opr11Slider.value = pctLic;
 
     // OPR-100013: Overhead % — driven by Tab 2 selection (Excel: 0) Reference OH column)
-    const ohPct = (typeof getOverheadPct === 'function') ? getOverheadPct() : 5;
+    // C-Level/CEO may override the % (oprOverride.oh)
+    const ohAuto = (typeof getOverheadPct === 'function') ? getOverheadPct() : 5;
+    const ohPct = (oprOverride.oh != null) ? oprOverride.oh : ohAuto;
     if (typeof syncOverheadUI === 'function') syncOverheadUI(pvEx, ohPct); // OPR-100013 % ของมูลค่าโครงการ (ไม่รวม VAT)
+    if (oprOverride.oh != null) { const _d = document.getElementById('opr13-desc'); if (_d) _d.textContent = ohPct.toFixed(1) + '% — แก้โดย C-Level/CEO'; }
 
     // OPR-100010: Marketing % — ตาม serviceData ของ Service Type (Excel: rate.mkt) ไม่ hardcode 1%
+    // C-Level/CEO may override the % (oprOverride.mkt)
     const svcVal = document.getElementById('serviceType')?.value;
-    const mktPct = (((typeof serviceData !== 'undefined' && serviceData[svcVal]) ? serviceData[svcVal].mkt : 0.01)) * 100;
+    const mktAuto = (((typeof serviceData !== 'undefined' && serviceData[svcVal]) ? serviceData[svcVal].mkt : 0.01)) * 100;
+    const mktPct = (oprOverride.mkt != null) ? oprOverride.mkt : mktAuto;
     const opr10Slider = document.getElementById('opr10-slider');
     const opr10Pct = document.getElementById('opr10-pct');
     const opr10Amt = document.getElementById('opr10-amount');
     if (opr10Slider) opr10Slider.value = mktPct;
     if (opr10Pct) opr10Pct.textContent = mktPct.toFixed(1) + '%';
     if (opr10Amt) opr10Amt.textContent = '฿' + Math.round(pvEx * mktPct / 100).toLocaleString(); // % ของมูลค่าโครงการ (ไม่รวม VAT)
+
+    // อัปเดต lock/unlock + badge (override active?) ของแถวการตลาด/ใบอนุญาต/Overhead
+    if (typeof refreshOprAdminUI === 'function') refreshOprAdminUI();
 
     // ---- KPI groups (ตรงกับการ์ด Tab 4) ----
     const fixedTotal = opr1 + opr2 + opr3 + opr4 + opr5;                                       // OPR-100001..005
@@ -4295,6 +4364,7 @@
   }
   document.addEventListener('change', function(e) {
     if (e.target.name === 'overhead') {
+      if (typeof oprOverride !== 'undefined') oprOverride.oh = null; // เลือก policy ใหม่ → ล้าง override Overhead
       if (typeof markDirty === 'function') markDirty();
       if (typeof updateOprTotal === 'function') updateOprTotal(); // recomputes + calls syncOverheadUI
     }
