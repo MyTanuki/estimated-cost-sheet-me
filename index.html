@@ -590,6 +590,19 @@
     </div>
   </div>
 
+  <!-- ===== วางรายละเอียดบริการจาก Excel (Service Detail bulk paste) ===== -->
+  <div id="pasteServiceModal" style="display:none; position:fixed; inset:0; z-index:9998; background:rgba(15,23,42,0.45); align-items:center; justify-content:center;">
+    <div style="width:520px; max-width:94vw; background:white; border-radius:12px; box-shadow:0 20px 50px rgba(0,0,0,0.3); padding:20px; box-sizing:border-box;">
+      <div style="font-size:16px; font-weight:700; color:var(--primary-dark); margin-bottom:4px;">วางรายละเอียดบริการจาก Excel</div>
+      <div style="font-size:11px; color:var(--text-secondary); margin-bottom:10px;">คัดลอกคอลัมน์เดียวจาก Excel แล้ววางที่นี่ · 1 บรรทัด = 1 รายการ · บรรทัดว่าง = เว้นบรรทัดใน Quotation · รายการจะถูกเพิ่มต่อท้ายของเดิม</div>
+      <textarea id="pasteServiceText" rows="9" placeholder="วางข้อความหลายบรรทัดที่นี่…" style="width:100%; box-sizing:border-box; padding:8px 10px; border:1px solid var(--border-strong); border-radius:6px; font-family:inherit; font-size:12px; resize:vertical;"></textarea>
+      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
+        <button class="btn" onclick="closePasteServiceModal()">ยกเลิก</button>
+        <button class="btn btn-primary" onclick="applyServiceLinePaste()"><i class="ti ti-plus"></i> เพิ่มรายการ</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Tab Navigation -->
   <div class="tab-nav" id="tabNav">
     <div class="tab-item active" data-tab="1"><span class="tab-num">1</span> Header</div>
@@ -819,7 +832,10 @@
       <div class="form-group" style="margin-left:14px;">
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
           <label class="form-label" style="margin:0;">รายละเอียดบริการ <span style="font-size:10px; color:var(--text-tertiary); font-weight:400;">(✓ = แสดงใน Quotation · คลิกเพื่อสลับ · ลากเพื่อจัดเรียง)</span></label>
-          <button class="btn btn-sm" onclick="addServiceLine()" style="gap:4px;"><i class="ti ti-plus"></i> เพิ่มแถว</button>
+          <div style="display:flex; gap:6px;">
+            <button class="btn btn-sm" onclick="openPasteServiceModal()" style="gap:4px;"><i class="ti ti-clipboard-text"></i> วางจาก Excel</button>
+            <button class="btn btn-sm" onclick="addServiceLine()" style="gap:4px;"><i class="ti ti-plus"></i> เพิ่มแถว</button>
+          </div>
         </div>
         <div id="serviceLinesContainer" style="border-top:1px solid var(--border);"></div>
       </div>
@@ -6161,6 +6177,24 @@ window.onload = function() {
     serviceLines.push({ id: serviceLineIdCounter++, text: '', inQuote: true });
     renderServiceLines();
   }
+  // วางรายละเอียดบริการหลายบรรทัดจาก Excel (1 บรรทัด = 1 รายการ, บรรทัดว่าง = line break) → append
+  function openPasteServiceModal() { const m = document.getElementById('pasteServiceModal'); if (m) m.style.display = 'flex'; const ta = document.getElementById('pasteServiceText'); if (ta) { ta.value = ''; ta.focus(); } }
+  function closePasteServiceModal() { const m = document.getElementById('pasteServiceModal'); if (m) m.style.display = 'none'; }
+  function applyServiceLinePaste() {
+    const ta = document.getElementById('pasteServiceText');
+    const lines = (ta ? ta.value : '').replace(/\r/g, '').split('\n');
+    while (lines.length && lines[0].trim() === '') lines.shift();          // ตัดบรรทัดว่างหัว
+    while (lines.length && lines[lines.length - 1].trim() === '') lines.pop(); // ตัดบรรทัดว่างท้าย
+    if (!lines.length) { closePasteServiceModal(); return; }
+    markDirty();
+    lines.forEach(l => { const t = l.trim(); serviceLines.push({ id: serviceLineIdCounter++, text: t, inQuote: t !== '' }); });
+    renderServiceLines();
+    closePasteServiceModal();
+    if (typeof dbNotify === 'function') dbNotify('เพิ่ม ' + lines.filter(l => l.trim()).length + ' รายการจาก Excel แล้ว');
+  }
+  window.openPasteServiceModal = openPasteServiceModal;
+  window.closePasteServiceModal = closePasteServiceModal;
+  window.applyServiceLinePaste = applyServiceLinePaste;
   function insertServiceLine(afterId) {
     markDirty();
     const idx = serviceLines.findIndex(l => l.id === afterId);
