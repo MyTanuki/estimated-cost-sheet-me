@@ -1056,7 +1056,6 @@
         <div class="section-bar" style="background: var(--primary);"></div>
         <div class="section-title">Investment Cost (OTC)</div>
         <div class="section-meta">
-          <button class="btn btn-sm" onclick="openPasteInvestment()" style="gap:4px;"><i class="ti ti-clipboard-text"></i> วางจาก Excel</button>
           <button class="btn btn-sm" onclick="addEmptyRow()"><i class="ti ti-plus"></i> Add empty row</button>
           <button class="btn btn-sm"><i class="ti ti-upload"></i> Import Excel</button>
         </div>
@@ -1503,9 +1502,9 @@
           <div>Item description</div>
           <div class="right">Unit</div>
           <div class="right">Cost/mo</div>
-          <div class="right">Total cost</div>
+          <div class="right">Total cost/mo</div>
           <div class="right">Sale/mo</div>
-          <div class="right">NPV sale</div>
+          <div class="right">Total sale/mo</div>
           <div class="right">Profit/mo</div>
           <div style="text-align:center;">Actions</div>
         </div>
@@ -2365,19 +2364,25 @@
   onRoleChange();
 
   function updateOprTotal() {
-    const base = getOprBase();
-    // Sync all base displays + slider data-base to the live investment value
-    const baseStr = '฿' + Math.round(base).toLocaleString();
+    const base = getOprBase(); // investment sale total — ฐานของ OPR-100007
+    // ฐานต่อแถวตามสเปค: 07=Investment · 08/09=Project value (รวม VAT) · 10/11/13=Project value (ไม่รวม VAT)
+    const _term = (typeof getContractTermMonths === 'function') ? getContractTermMonths() : 36;
+    const _mrcSale = (typeof getMrcMonthly === 'function') ? (getMrcMonthly().sale || 0) : 0;
+    const pvEx = base + _mrcSale * _term;   // project value (ไม่รวม VAT) = inv.sale + mrc.sale × term
+    const pvVat = pvEx * 1.07;              // project value (รวม VAT 7%)
     const baseLabel = document.getElementById('opr-investment-base');
-    if (baseLabel) baseLabel.textContent = baseStr;
-    document.querySelectorAll('.opr-base-ref').forEach(el => { el.textContent = baseStr; });
+    if (baseLabel) baseLabel.textContent = '฿' + Math.round(base).toLocaleString();
+    // base-ref ต่อแถว (DOM order ของ .opr-base-ref: opr7, opr8, opr9, opr10, opr11, opr13)
+    const _refBase = [base, pvVat, pvVat, pvEx, pvEx, pvEx];
+    document.querySelectorAll('.opr-base-ref').forEach((el, i) => {
+      el.textContent = '฿' + Math.round(i < _refBase.length ? _refBase[i] : base).toLocaleString();
+    });
+    // slider data-base ต่อแถว (opr7=Investment, opr8/9=Project value รวม VAT) แล้วคำนวณ amount จากฐานนั้น
+    const _sliderBase = { 'opr7-slider': base, 'opr8-slider': pvVat, 'opr9-slider': pvVat };
     document.querySelectorAll('input[type="range"][data-base]').forEach(s => {
-      s.dataset.base = Math.round(base);
+      if (_sliderBase[s.id] != null) s.dataset.base = Math.round(_sliderBase[s.id]);
       const amt = document.getElementById(s.dataset.target);
-      if (amt) {
-        const v = Math.round(base * (parseFloat(s.value) || 0) / 100);
-        amt.textContent = '฿' + v.toLocaleString();
-      }
+      if (amt) amt.textContent = '฿' + Math.round((parseFloat(s.dataset.base) || 0) * (parseFloat(s.value) || 0) / 100).toLocaleString();
     });
     // parseNum รองรับค่าที่มี comma (input เป็น text เพื่อแสดง comma ได้)
     const opr1 = parseNum(document.getElementById('opr1-val')?.value);
@@ -2408,7 +2413,7 @@
     const opr8Amt = document.getElementById('opr8-amount');
     const opr8Row = document.getElementById('opr8-row');
     if (opr8Pct) opr8Pct.textContent = pct8.toFixed(1) + '%';
-    if (opr8Amt) opr8Amt.textContent = '฿' + Math.round(base * pct8 / 100).toLocaleString();
+    if (opr8Amt) opr8Amt.textContent = '฿' + Math.round(pvVat * pct8 / 100).toLocaleString(); // % ของมูลค่าโครงการ (รวม VAT)
     if (opr8Row) opr8Row.style.opacity = bidChecked ? '1' : '0.4';
 
     // Update OPR-100009 row visual
@@ -2416,7 +2421,7 @@
     const opr9Amt = document.getElementById('opr9-amount');
     const opr9Row = document.getElementById('opr9-row');
     if (opr9Pct) opr9Pct.textContent = pct9.toFixed(1) + '%';
-    if (opr9Amt) opr9Amt.textContent = '฿' + Math.round(base * pct9 / 100).toLocaleString();
+    if (opr9Amt) opr9Amt.textContent = '฿' + Math.round(pvVat * pct9 / 100).toLocaleString(); // % ของมูลค่าโครงการ (รวม VAT)
     if (opr9Row) opr9Row.style.opacity = perfChecked ? '1' : '0.4';
 
     // Update OPR-100011 row visual (license) — full sync
@@ -2427,14 +2432,14 @@
     if (opr11Row) opr11Row.style.opacity = licChecked ? '1' : '0.4';
     if (opr11Pct) opr11Pct.textContent = licChecked ? '2.0%' : '0.0%';
     if (opr11Amt) {
-      opr11Amt.textContent = licChecked ? '฿' + Math.round(base * 2 / 100).toLocaleString() : '฿0';
+      opr11Amt.textContent = licChecked ? '฿' + Math.round(pvEx * 2 / 100).toLocaleString() : '฿0'; // % ของมูลค่าโครงการ (ไม่รวม VAT)
       opr11Amt.style.color = licChecked ? '' : 'var(--text-tertiary)';
     }
     if (opr11Slider) opr11Slider.value = licChecked ? 2 : 0;
 
     // OPR-100013: Overhead % — driven by Tab 2 selection (Excel: 0) Reference OH column)
     const ohPct = (typeof getOverheadPct === 'function') ? getOverheadPct() : 5;
-    if (typeof syncOverheadUI === 'function') syncOverheadUI(base, ohPct);
+    if (typeof syncOverheadUI === 'function') syncOverheadUI(pvEx, ohPct); // OPR-100013 % ของมูลค่าโครงการ (ไม่รวม VAT)
 
     // OPR-100010: Marketing % — ตาม serviceData ของ Service Type (Excel: rate.mkt) ไม่ hardcode 1%
     const svcVal = document.getElementById('serviceType')?.value;
@@ -2444,12 +2449,16 @@
     const opr10Amt = document.getElementById('opr10-amount');
     if (opr10Slider) opr10Slider.value = mktPct;
     if (opr10Pct) opr10Pct.textContent = mktPct.toFixed(1) + '%';
-    if (opr10Amt) opr10Amt.textContent = '฿' + Math.round(base * mktPct / 100).toLocaleString();
+    if (opr10Amt) opr10Amt.textContent = '฿' + Math.round(pvEx * mktPct / 100).toLocaleString(); // % ของมูลค่าโครงการ (ไม่รวม VAT)
 
     // ---- KPI groups (ตรงกับการ์ด Tab 4) ----
-    const fixedTotal = opr1 + opr2 + opr3 + opr4 + opr5;                                    // OPR-100001..005
-    const variable = spare + Math.round(base * (pct7 + pct8 + pct9 + mktPct + pctLic) / 100); // OPR-100006..011
-    const entOh = opr12 + Math.round(base * ohPct / 100);                                     // OPR-100012..013
+    const fixedTotal = opr1 + opr2 + opr3 + opr4 + opr5;                                       // OPR-100001..005
+    // OPR-100006..011: spare(กรอกเอง) + 07(Investment) + 08/09(Project incVAT) + 10/11(Project exVAT)
+    const variable = spare
+      + Math.round(base * pct7 / 100)
+      + Math.round(pvVat * (pct8 + pct9) / 100)
+      + Math.round(pvEx * (mktPct + pctLic) / 100);
+    const entOh = opr12 + Math.round(pvEx * ohPct / 100);                                      // OPR-100012(กรอกเอง) + 013(Project exVAT)
     const oprTotalNum = Math.round(fixedTotal + variable + entOh);
 
     const setKpi = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
@@ -3349,25 +3358,6 @@
   const CONTRACT_TERM_DEFAULT = 36;
   const FREE_PERIOD_DEFAULT = 1;
 
-  function calcNpvSale(salePerMonth, term, rate, free) {
-    const monthlyRate = rate / 12;
-    let npv = 0;
-    for (let t = free + 1; t <= term; t++) {
-      npv += salePerMonth / Math.pow(1 + monthlyRate, t);
-    }
-    return npv;
-  }
-
-  // Live parameters for the MRC table (ตาม Global Contract Term + NPV sliders, ไม่ fix 36 เดือน)
-  function getMrcCalcParams() {
-    const term = (typeof getContractTermMonths === 'function') ? getContractTermMonths() : CONTRACT_TERM_DEFAULT;
-    const freeRaw = parseInt(document.getElementById('free-period')?.value);
-    const free = isNaN(freeRaw) ? FREE_PERIOD_DEFAULT : freeRaw;
-    const rateRaw = parseFloat(document.getElementById('discount-rate')?.value);
-    const rate = isNaN(rateRaw) ? NPV_DISCOUNT_RATE_DEFAULT : rateRaw / 100;
-    return { term, free, rate };
-  }
-
   const mrcManager = createRowManager({
     containerId: 'mrcRows',
     emptyStateId: 'mrcEmptyState',
@@ -3375,9 +3365,8 @@
     numericFields: ['unit', 'costPerMonth', 'salePerMonth'],
     emptyRow: { vendor: '', code: '', desc: '', unit: 1, costPerMonth: 0, salePerMonth: 0 },
     renderRow: (row, idx, isFirst, isLast) => {
-      const p = getMrcCalcParams();
-      const totalCost = row.unit * row.costPerMonth * (p.term - p.free);
-      const npvSale = row.unit * calcNpvSale(row.salePerMonth, p.term, p.rate, p.free);
+      const totalCost = row.unit * row.costPerMonth;   // ต่อเดือน (ไม่คูณ contract term)
+      const npvSale = row.unit * row.salePerMonth;      // total sale ต่อเดือน — ผลตอบแทนต่อเดือน สอดคล้องกับ cost
       const profitPerMonth = (row.salePerMonth - row.costPerMonth) * row.unit;
       const profitPct = row.salePerMonth > 0 ? ((row.salePerMonth - row.costPerMonth) / row.salePerMonth * 100) : 0;
       const isLowMargin = profitPct < 15 && profitPct > 0;
@@ -3437,11 +3426,10 @@
     },
     updateSubtotal: (rows) => {
       let units = 0, totalCost = 0, totalNpvSale = 0, profitPerMonth = 0;
-      const p = getMrcCalcParams();
       rows.forEach(r => {
         units += r.unit;
-        totalCost += r.unit * r.costPerMonth * (p.term - p.free);
-        totalNpvSale += r.unit * calcNpvSale(r.salePerMonth, p.term, p.rate, p.free);
+        totalCost += r.unit * r.costPerMonth;        // ต่อเดือน
+        totalNpvSale += r.unit * r.salePerMonth;     // total sale ต่อเดือน
         profitPerMonth += (r.salePerMonth - r.costPerMonth) * r.unit;
       });
       const setText = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
@@ -6220,7 +6208,6 @@ window.onload = function() {
     const title = document.getElementById('tablePasteTitle');
     if (title) title.textContent = target === 'mrc' ? 'วางรายการ Monthly (MRC) จาก Excel' : 'วางรายการ Investment จาก Excel';
   }
-  function openPasteInvestment() { openTablePaste('investment'); }
   function openPasteMrc() { openTablePaste('mrc'); }
   function closeTablePaste() { const m = document.getElementById('tablePasteModal'); if (m) m.style.display = 'none'; }
   function applyTablePaste() {
@@ -6246,7 +6233,6 @@ window.onload = function() {
     closeTablePaste();
     if (typeof dbNotify === 'function') dbNotify('นำเข้า ' + added + ' แถวจาก Excel แล้ว');
   }
-  window.openPasteInvestment = openPasteInvestment;
   window.openPasteMrc = openPasteMrc;
   window.closeTablePaste = closeTablePaste;
   window.applyTablePaste = applyTablePaste;
