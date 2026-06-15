@@ -5208,7 +5208,7 @@ window.onload = function() {
       '.sec{font-weight:700;font-size:10px;margin:6px 0 1px;}' +
       '.sigt td{border:1px solid #333;padding:2px 4px;} .sigt .lbl{background:#ffff99;font-weight:600;text-align:center;} .sigt .sigc{text-align:center;padding-top:18px;} .sigt .sigln{width:58%;margin:0 auto 1px;border-bottom:1px solid #333;height:0;}' +
       '.doc{width:100%;} .doc>thead>tr>td{border:none;padding:0 0 14px;} .doc>tbody>tr>td{border:none;padding:0;}' +
-      '.opt th:nth-child(3),.opt td:nth-child(3){border-right:none;} .opt th:nth-child(4),.opt td:nth-child(4){border-left:none;border-right:none;} .opt th:nth-child(5),.opt td:nth-child(5){border-left:none;}' +
+      '.opt th:nth-child(3),.opt td:nth-child(3){border-right:none;} .opt th:nth-child(4),.opt td:nth-child(4){border-left:none;border-right:none;} .opt th:nth-child(5),.opt td:nth-child(5){border-left:1px solid #999;}' +
       '</style></head><body>' +
       '<table class="doc"><thead><tr><td>' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">' +
@@ -5241,8 +5241,8 @@ window.onload = function() {
       '<div class="sec">MONTHLY (MRC/MRR)</div>' +
       '<table class="bt">' + _cg11 + '<tr class="thr"><th class="c">No</th><th>Vendor</th><th>Item Code</th><th>Item Description</th><th class="c">Unit</th><th class="r">Cost/mo</th><th class="r">Total Cost</th><th class="r">MSRP</th><th class="r">Sale/mo</th><th class="r">Total Sale</th><th class="r">Profit</th></tr>' +
       mrcRows + '<tr class="yel"><td colspan="6" class="r"><b>รวม ค่าใช้จ่ายรายเดือน (MRC)</b></td><td class="r brown"><b>' + _es2(mrcCost) + '</b></td><td></td><td></td><td class="r brown"><b>' + _es2(mrcSale) + '</b></td><td class="r"><b>' + _es2(mrcSale - mrcCost) + '</b></td></tr></table>' +
-      // Summary + signatures
-      '<table style="margin-top:8px;"><tr><td style="width:60%;vertical-align:top;border:none;">' +
+      // Summary + signatures — เก็บตาราง Revenue/Margin + ตารางอนุมัติเป็นชุดเดียว ไม่ให้ถูกตัดแยกหน้า (ปัดไปหน้าถัดไปพร้อมกัน)
+      '<table style="margin-top:8px;page-break-inside:avoid;break-inside:avoid;"><tr><td style="width:60%;vertical-align:top;border:none;">' +
       '<table class="sum"><tr><td><b>Revenue</b></td><td class="r">100%</td><td class="r"><b>' + _es2(_rev) + '</b></td></tr>' +
       _bdRows +
       '<tr><td><b>Gross Profit (Discount Rate 6% per year)</b></td><td class="r">' + esc(d.grossMargin || '') + '</td><td class="r"><b>' + _es2(_gross) + '</b></td></tr>' +
