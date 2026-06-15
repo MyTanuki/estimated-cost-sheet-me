@@ -5120,6 +5120,9 @@ window.onload = function() {
   function buildEstSheetHtml(d) {
     const esc = (typeof escapeHtml === 'function') ? escapeHtml : (s => String(s == null ? '' : s));
     const _sig = (lbl, nm) => '<tr><td class="lbl">' + esc(lbl) + '</td></tr><tr><td class="sigc"><div class="sigln"></div>( ' + esc(nm || '') + ' )<br>Date : __/__/____</td></tr>';
+    // colgroup: ความกว้างคอลัมน์ชุดเดียวกัน ทำให้ตาราง One Time + Monthly ตรงกันเป๊ะ (No/Supplier=Vendor/...)
+    const _cg11 = '<colgroup><col style="width:4%"><col style="width:8%"><col style="width:10%"><col style="width:26%"><col style="width:5%"><col style="width:8%"><col style="width:9%"><col style="width:7%"><col style="width:8%"><col style="width:9%"><col style="width:6%"></colgroup>';
+    const _cg5 = '<colgroup><col style="width:4%"><col style="width:12%"><col style="width:55%"><col style="width:12%"><col style="width:17%"></colgroup>';
     const dd = d.date instanceof Date ? d.date : new Date();
     const dateStr = dd.getDate() + '-' + (dd.getMonth() + 1) + '-' + dd.getFullYear();
     const oprLabel = {
@@ -5171,7 +5174,7 @@ window.onload = function() {
     const mrcSale = mr.reduce((s, r) => s + (+r.unit || 0) * (+r.salePerMonth || 0), 0);
     const _sdItems = (d.serviceLines || []).filter(l => l.inQuote !== false && l.text);
     let svcLines = '';
-    const _sdN = Math.max(11, _sdItems.length + 1); // เติมเส้นบรรทัดให้เต็มกรอบ
+    const _sdN = Math.max(8, _sdItems.length + 1); // เติมเส้นบรรทัดให้เต็มกรอบ (ลดลง 3 จากเดิม 11)
     for (let _i = 0; _i < _sdN; _i++) svcLines += '<div class="sd">' + (_sdItems[_i] ? esc(_sdItems[_i].text) : '&nbsp;') + '</div>';
     const ck = b => b ? '☑' : '☐';
     const logo = (typeof LOGO_DATA_URL !== 'undefined') ? LOGO_DATA_URL : '';
@@ -5203,7 +5206,10 @@ window.onload = function() {
       '.kv td{border:none;padding:0.5px 4px;} .sd{border-bottom:1px solid #d9d9d9;min-height:13px;padding:0.5px 2px;}' +
       '.sec{font-weight:700;font-size:10px;margin:6px 0 1px;}' +
       '.sigt td{border:1px solid #333;padding:2px 4px;} .sigt .lbl{background:#ffff99;font-weight:600;text-align:center;} .sigt .sigc{text-align:center;padding-top:18px;} .sigt .sigln{width:58%;margin:0 auto 1px;border-bottom:1px solid #333;height:0;}' +
+      '.doc{width:100%;} .doc>thead>tr>td,.doc>tbody>tr>td{border:none;padding:0;}' +
+      '.opt th:nth-child(3),.opt td:nth-child(3){border-right:none;} .opt th:nth-child(4),.opt td:nth-child(4){border-left:none;border-right:none;} .opt th:nth-child(5),.opt td:nth-child(5){border-left:none;}' +
       '</style></head><body>' +
+      '<table class="doc"><thead><tr><td>' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">' +
       (logo ? '<img src="' + logo + '" style="height:30px;">' : '<span></span>') +
       '<span style="font-size:8px;color:#666;text-align:right;">Page 1 of 1<br>Rev 2.4(6)</span></div>' +
@@ -5216,6 +5222,7 @@ window.onload = function() {
       '<td><b>ระยะสัญญา :</b> ' + d.term + ' เดือน &nbsp; <b>Credit :</b> ' + d.credit + '</td></tr>' +
       '<tr><td><b>ค่าบริการรายเดือน :</b> ' + _es2(d.mrcMonth) + ' บาท/เดือน &nbsp; <b>มูลค่าโครงการ :</b> ' + _es2(d.pvEx) + ' (ไม่รวม VAT) · ' + _es2(d.pvVat) + ' (รวม VAT)</td>' +
       '<td><b>FX:</b> USD ' + (d.fx.usd || '-') + ' · CNY ' + (d.fx.cny || '-') + '</td></tr></table>' +
+      '</td></tr></thead><tbody><tr><td>' +
       // Service details + checkboxes
       '<table style="margin-top:4px;"><tr>' +
       '<td style="width:68%;vertical-align:top;border:1px solid #999;padding-right:1in;"><b>Service Details</b>' + svcLines + '</td>' +
@@ -5223,15 +5230,15 @@ window.onload = function() {
       '<br><br><b>ค่าใช้จ่ายส่วนกลาง</b><br>☑ ' + esc(d.ohLabel || 'โครงการปกติ (5%)') + '</td></tr></table>' +
       // ONE TIME table
       '<div class="sec">ONE TIME (OTC/OTR)</div>' +
-      '<table class="bt"><tr class="thr"><th class="c">No</th><th>Supplier</th><th>Item Code</th><th>Item Description</th><th class="c">Unit</th><th class="r">Cost/Unit</th><th class="r">Total Cost</th><th class="r">MSRP</th><th class="r">Sale/Unit</th><th class="r">Total Sale</th><th class="r">Profit</th></tr>' +
+      '<table class="bt">' + _cg11 + '<tr class="thr"><th class="c">No</th><th>Supplier</th><th>Item Code</th><th>Item Description</th><th class="c">Unit</th><th class="r">Cost/Unit</th><th class="r">Total Cost</th><th class="r">MSRP</th><th class="r">Sale/Unit</th><th class="r">Total Sale</th><th class="r">Profit</th></tr>' +
       '<tr class="blue"><td colspan="11">Investment Cost (Hardware/Software)</td></tr>' + invRows +
       '<tr class="yel"><td colspan="6" class="r"><b>ค่าบริการจ่ายครั้งเดียว (OTC)</b></td><td class="r brown"><b>' + _es2(invCost) + '</b></td><td></td><td></td><td class="r brown"><b>' + _es2(invSale) + '</b></td><td class="r"><b>' + _es2(invSale - invCost) + '</b></td></tr></table>' +
       '<div class="sec">Operation Cost</div>' +
-      '<table><tr class="thr"><th class="c">No</th><th>Code</th><th>Description</th><th class="r">%</th><th class="r">Total Cost</th></tr>' + oprRows +
+      '<table class="opt">' + _cg5 + '<tr class="thr"><th class="c">No</th><th>Code</th><th>Description</th><th class="r">%</th><th class="r">Total Cost</th></tr>' + oprRows +
       '<tr class="yel"><td colspan="4" class="r"><b>รวม ค่าใช้จ่ายครั้งเดียว (Operation)</b></td><td class="r"><b>' + _es2(oprTotal) + '</b></td></tr></table>' +
       // MONTHLY table
       '<div class="sec">MONTHLY (MRC/MRR)</div>' +
-      '<table class="bt"><tr class="thr"><th class="c">No</th><th>Vendor</th><th>Item Code</th><th>Item Description</th><th class="c">Unit</th><th class="r">Cost/mo</th><th class="r">Total Cost</th><th class="r">MSRP</th><th class="r">Sale/mo</th><th class="r">Total Sale</th><th class="r">Profit</th></tr>' +
+      '<table class="bt">' + _cg11 + '<tr class="thr"><th class="c">No</th><th>Vendor</th><th>Item Code</th><th>Item Description</th><th class="c">Unit</th><th class="r">Cost/mo</th><th class="r">Total Cost</th><th class="r">MSRP</th><th class="r">Sale/mo</th><th class="r">Total Sale</th><th class="r">Profit</th></tr>' +
       mrcRows + '<tr class="yel"><td colspan="6" class="r"><b>รวม ค่าใช้จ่ายรายเดือน (MRC)</b></td><td class="r brown"><b>' + _es2(mrcCost) + '</b></td><td></td><td></td><td class="r brown"><b>' + _es2(mrcSale) + '</b></td><td class="r"><b>' + _es2(mrcSale - mrcCost) + '</b></td></tr></table>' +
       // Summary + signatures
       '<table style="margin-top:8px;"><tr><td style="width:60%;vertical-align:top;border:none;">' +
@@ -5245,6 +5252,7 @@ window.onload = function() {
       _sig('Head of Pre-Sales', d.sigPresale) + _sig('Head of Sales', d.sigSales) + _sig('C-Level', d.sigCOO) + _sig('CEO', d.sigCEO) +
       '</table>' +
       '</td></tr></table>' +
+      '</td></tr></tbody></table>' +
       '<scr' + 'ipt>window.onload=function(){setTimeout(function(){window.print();},200);};</scr' + 'ipt>' +
       '</body></html>';
   }
