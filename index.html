@@ -5112,13 +5112,14 @@ window.onload = function() {
       netProfit: (window.__netProfit || 0),
       grossProfit: _esNum(txt('summary-gross-profit')),
       grossMargin: txt('summary-gross-margin'), netMargin: txt('summary-net-margin'),
-      sigPresale: steps[0] ? steps[0].name : '', sigSales: steps[1] ? steps[1].name : '', sigCOO: steps[2] ? steps[2].name : ''
+      sigPresale: steps[0] ? steps[0].name : '', sigSales: steps[1] ? steps[1].name : '', sigCOO: steps[2] ? steps[2].name : '', sigCEO: steps[3] ? steps[3].name : ''
     };
   }
 
   // pure: สร้าง HTML เอกสาร Estimated Cost Sheet (by Presale) ตามรูปแบบที่กำหนด
   function buildEstSheetHtml(d) {
     const esc = (typeof escapeHtml === 'function') ? escapeHtml : (s => String(s == null ? '' : s));
+    const _sig = (lbl, nm) => '<tr><td class="lbl">' + esc(lbl) + '</td></tr><tr><td class="sigsp"></td></tr><tr><td class="c">( ' + esc(nm || '') + ' )<br>Date : __/__/____</td></tr>';
     const dd = d.date instanceof Date ? d.date : new Date();
     const dateStr = dd.getDate() + '-' + (dd.getMonth() + 1) + '-' + dd.getFullYear();
     const oprLabel = {
@@ -5172,14 +5173,17 @@ window.onload = function() {
     const ck = b => b ? '☑' : '☐';
     const logo = (typeof LOGO_DATA_URL !== 'undefined') ? LOGO_DATA_URL : '';
     return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(d.estNo) + '</title><style>' +
-      '@page{size:A4;margin:10mm;} *{box-sizing:border-box;} body{font-family:"Sarabun","Tahoma",sans-serif;font-size:9px;color:#111;margin:0;}' +
-      'table{width:100%;border-collapse:collapse;} td,th{border:1px solid #999;padding:2px 4px;} .r{text-align:right;} .c{text-align:center;}' +
-      '.hd{background:#e8332e;color:#fff;text-align:center;font-size:15px;font-weight:700;padding:6px;} .gray{background:#f0f0f0;} .blue{background:#dbe9f5;font-weight:600;} .yel{background:#fffbcc;}' +
-      '.kv td{border:none;padding:1px 4px;} .sd{border-bottom:1px solid #bbb;min-height:13px;padding:1px 2px;} h4{margin:8px 0 2px;font-size:10px;}' +
-      '.sec{font-weight:700;font-size:10px;margin:8px 0 2px;} .sig{height:40px;border-bottom:1px solid #333;}' +
+      '@page{size:A4;margin:9mm;} *{box-sizing:border-box;} body{font-family:"Sarabun","Tahoma",sans-serif;font-size:8.5px;color:#111;margin:0;line-height:1.1;}' +
+      'table{width:100%;border-collapse:collapse;} td,th{border:1px solid #999;padding:0.5px 4px;line-height:1.15;} .r{text-align:right;} .c{text-align:center;}' +
+      '.hd{background:#e8332e;color:#fff;text-align:center;font-size:15px;font-weight:700;padding:5px;letter-spacing:.5px;}' +
+      '.thr th{background:#e8332e;color:#fff;border-color:#c62828;} .gray{background:#f0f0f0;} .blue{background:#dbe9f5;font-weight:600;} .yel{background:#fff7cc;}' +
+      '.kv td{border:none;padding:0.5px 4px;} .sd{border-bottom:1px solid #bbb;min-height:12px;padding:0.5px 2px;}' +
+      '.sec{font-weight:700;font-size:10px;margin:6px 0 1px;} .sigt td{border:1px solid #333;padding:2px 4px;} .sigt .lbl{background:#fff7cc;font-weight:600;text-align:center;} .sigsp{height:28px;}' +
       '</style></head><body>' +
-      '<div style="display:flex;align-items:center;gap:8px;">' + (logo ? '<img src="' + logo + '" style="height:34px;">' : '') +
-      '<div class="hd" style="flex:1;">Estimated Cost Sheet (by Presale)</div></div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">' +
+      (logo ? '<img src="' + logo + '" style="height:30px;">' : '<span></span>') +
+      '<span style="font-size:8px;color:#666;text-align:right;">Page 1 of 1<br>Rev 2.4(6)</span></div>' +
+      '<div class="hd">Estimated Cost Sheet (by Presale)</div>' +
       // header key-values
       '<table class="kv" style="margin-top:4px;"><tr><td><b>Customer :</b> ' + esc(d.cust) + '</td><td style="width:170px;"><b>Estimated Cost No :</b> ' + esc(d.estNo) + '</td></tr>' +
       '<tr><td><b>Project :</b> ' + esc(d.project) + '</td><td><b>Estimated Date :</b> ' + dateStr + '</td></tr>' +
@@ -5194,15 +5198,15 @@ window.onload = function() {
       '<br><br><b>ค่าใช้จ่ายส่วนกลาง</b><br>☑ ' + esc(d.ohLabel || 'โครงการปกติ (5%)') + '</td></tr></table>' +
       // ONE TIME table
       '<div class="sec">ONE TIME (OTC/OTR)</div>' +
-      '<table><tr class="gray"><th class="c">No</th><th>Supplier</th><th>Item Code</th><th>Item Description</th><th class="c">Unit</th><th class="r">Cost/Unit</th><th class="r">Total Cost</th><th class="r">MSRP</th><th class="r">Sale/Unit</th><th class="r">Total Sale</th><th class="r">Profit</th></tr>' +
+      '<table><tr class="thr"><th class="c">No</th><th>Supplier</th><th>Item Code</th><th>Item Description</th><th class="c">Unit</th><th class="r">Cost/Unit</th><th class="r">Total Cost</th><th class="r">MSRP</th><th class="r">Sale/Unit</th><th class="r">Total Sale</th><th class="r">Profit</th></tr>' +
       '<tr class="blue"><td colspan="11">Investment Cost (Hardware/Software)</td></tr>' + invRows +
       '<tr class="yel"><td colspan="6" class="r"><b>ค่าบริการจ่ายครั้งเดียว (OTC)</b></td><td class="r"><b>' + _es2(invCost) + '</b></td><td></td><td></td><td class="r"><b>' + _es2(invSale) + '</b></td><td class="r"><b>' + _es2(invSale - invCost) + '</b></td></tr></table>' +
       '<div class="sec">Operation Cost</div>' +
-      '<table><tr class="gray"><th class="c">No</th><th>Code</th><th>Description</th><th class="r">%</th><th class="r">Total Cost</th></tr>' + oprRows +
+      '<table><tr class="thr"><th class="c">No</th><th>Code</th><th>Description</th><th class="r">%</th><th class="r">Total Cost</th></tr>' + oprRows +
       '<tr class="yel"><td colspan="4" class="r"><b>รวม ค่าใช้จ่ายครั้งเดียว (Operation)</b></td><td class="r"><b>' + _es2(oprTotal) + '</b></td></tr></table>' +
       // MONTHLY table
       '<div class="sec">MONTHLY (MRC/MRR)</div>' +
-      '<table><tr class="gray"><th class="c">No</th><th>Vendor</th><th>Item Code</th><th>Item Description</th><th class="c">Unit</th><th class="r">Cost/mo</th><th class="r">Total Cost</th><th class="r">MSRP</th><th class="r">Sale/mo</th><th class="r">Total Sale</th><th class="r">Profit</th></tr>' +
+      '<table><tr class="thr"><th class="c">No</th><th>Vendor</th><th>Item Code</th><th>Item Description</th><th class="c">Unit</th><th class="r">Cost/mo</th><th class="r">Total Cost</th><th class="r">MSRP</th><th class="r">Sale/mo</th><th class="r">Total Sale</th><th class="r">Profit</th></tr>' +
       mrcRows + '<tr class="yel"><td colspan="6" class="r"><b>รวม ค่าใช้จ่ายรายเดือน (MRC)</b></td><td class="r"><b>' + _es2(mrcCost) + '</b></td><td></td><td></td><td class="r"><b>' + _es2(mrcSale) + '</b></td><td class="r"><b>' + _es2(mrcSale - mrcCost) + '</b></td></tr></table>' +
       // Summary + signatures
       '<table style="margin-top:8px;"><tr><td style="width:60%;vertical-align:top;border:none;">' +
@@ -5210,9 +5214,9 @@ window.onload = function() {
       '<tr><td>Gross Profit (Discount Rate 6%/yr)</td><td class="r">' + _es2(d.grossProfit) + '</td><td class="c">' + esc(d.grossMargin || '') + '</td></tr>' +
       '<tr class="gray"><td><b>Net Profit (Discount Rate 6%/yr)</b></td><td class="r"><b>' + _es2(d.netProfit) + '</b></td><td class="c"><b>' + esc(d.netMargin || '') + '</b></td></tr></table></td>' +
       '<td style="vertical-align:top;border:none;padding-left:10px;">' +
-      '<div class="yel" style="padding:2px 4px;font-weight:600;">Head of Pre-Sales</div><div class="sig"></div><div>(' + esc(d.sigPresale) + ')</div>' +
-      '<div class="yel" style="padding:2px 4px;font-weight:600;margin-top:6px;">Head of Sales</div><div class="sig"></div><div>(' + esc(d.sigSales) + ')</div>' +
-      '<div class="yel" style="padding:2px 4px;font-weight:600;margin-top:6px;">COO</div><div class="sig"></div><div>(' + esc(d.sigCOO) + ')</div>' +
+      '<table class="sigt">' +
+      _sig('Head of Pre-Sales', d.sigPresale) + _sig('Head of Sales', d.sigSales) + _sig('C-Level', d.sigCOO) + _sig('CEO', d.sigCEO) +
+      '</table>' +
       '</td></tr></table>' +
       '<scr' + 'ipt>window.onload=function(){setTimeout(function(){window.print();},200);};</scr' + 'ipt>' +
       '</body></html>';
