@@ -5195,10 +5195,11 @@ window.onload = function() {
       '@page{size:A4;margin:9mm;} *{box-sizing:border-box;} body{font-family:"Sarabun","Tahoma",sans-serif;font-size:8.5px;color:#111;margin:0;line-height:1.1;}' +
       'table{width:100%;border-collapse:collapse;} td,th{border:1px solid #999;padding:0.5px 4px;line-height:1.15;} .r{text-align:right;} .c{text-align:center;}' +
       '.hd{background:#e8332e;color:#fff;text-align:center;font-size:15px;font-weight:700;padding:5px;letter-spacing:.5px;}' +
-      '.thr th{background:#e8332e;color:#fff;border-color:#c62828;} .gray{background:#f0f0f0;} .blue{background:#fdf3c4;font-weight:600;} .yel{background:#fff7cc;}' +
+      '.thr th{background:#e6e6e6;color:#222;border-color:#bbb;} .gray{background:#f0f0f0;} .blue{background:#fdf3c4;font-weight:600;} .yel{background:#fff7cc;}' +
+      'th.brown,td.brown{background:#fbe9da;} table.bt th:nth-child(7),table.bt td:nth-child(7),table.bt th:nth-child(10),table.bt td:nth-child(10){background:#fbe9da;} .sum td{border:none;padding:0.5px 4px;}' +
       '.kv td{border:none;padding:0.5px 4px;} .sd{border-bottom:1px solid #bbb;min-height:12px;padding:0.5px 2px;}' +
-      '.sec{font-weight:700;font-size:10px;margin:6px 0 1px;background:#fff7cc;border:1px solid #e6d77a;padding:2px 6px;}' +
-      '.sigt td{border:1px solid #333;padding:2px 4px;} .sigt .lbl{background:#fff7cc;font-weight:600;text-align:center;} .sigt .sigc{text-align:center;padding-top:18px;} .sigt .sigln{width:58%;margin:0 auto 1px;border-bottom:1px solid #333;height:0;}' +
+      '.sec{font-weight:700;font-size:10px;margin:6px 0 1px;}' +
+      '.sigt td{border:1px solid #333;padding:2px 4px;} .sigt .lbl{background:#ffff99;font-weight:600;text-align:center;} .sigt .sigc{text-align:center;padding-top:18px;} .sigt .sigln{width:58%;margin:0 auto 1px;border-bottom:1px solid #333;height:0;}' +
       '</style></head><body>' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">' +
       (logo ? '<img src="' + logo + '" style="height:30px;">' : '<span></span>') +
@@ -5218,23 +5219,23 @@ window.onload = function() {
       '<br><br><b>ค่าใช้จ่ายส่วนกลาง</b><br>☑ ' + esc(d.ohLabel || 'โครงการปกติ (5%)') + '</td></tr></table>' +
       // ONE TIME table
       '<div class="sec">ONE TIME (OTC/OTR)</div>' +
-      '<table><tr class="thr"><th class="c">No</th><th>Supplier</th><th>Item Code</th><th>Item Description</th><th class="c">Unit</th><th class="r">Cost/Unit</th><th class="r">Total Cost</th><th class="r">MSRP</th><th class="r">Sale/Unit</th><th class="r">Total Sale</th><th class="r">Profit</th></tr>' +
+      '<table class="bt"><tr class="thr"><th class="c">No</th><th>Supplier</th><th>Item Code</th><th>Item Description</th><th class="c">Unit</th><th class="r">Cost/Unit</th><th class="r">Total Cost</th><th class="r">MSRP</th><th class="r">Sale/Unit</th><th class="r">Total Sale</th><th class="r">Profit</th></tr>' +
       '<tr class="blue"><td colspan="11">Investment Cost (Hardware/Software)</td></tr>' + invRows +
-      '<tr class="yel"><td colspan="6" class="r"><b>ค่าบริการจ่ายครั้งเดียว (OTC)</b></td><td class="r"><b>' + _es2(invCost) + '</b></td><td></td><td></td><td class="r"><b>' + _es2(invSale) + '</b></td><td class="r"><b>' + _es2(invSale - invCost) + '</b></td></tr></table>' +
+      '<tr class="yel"><td colspan="6" class="r"><b>ค่าบริการจ่ายครั้งเดียว (OTC)</b></td><td class="r brown"><b>' + _es2(invCost) + '</b></td><td></td><td></td><td class="r brown"><b>' + _es2(invSale) + '</b></td><td class="r"><b>' + _es2(invSale - invCost) + '</b></td></tr></table>' +
       '<div class="sec">Operation Cost</div>' +
       '<table><tr class="thr"><th class="c">No</th><th>Code</th><th>Description</th><th class="r">%</th><th class="r">Total Cost</th></tr>' + oprRows +
       '<tr class="yel"><td colspan="4" class="r"><b>รวม ค่าใช้จ่ายครั้งเดียว (Operation)</b></td><td class="r"><b>' + _es2(oprTotal) + '</b></td></tr></table>' +
       // MONTHLY table
       '<div class="sec">MONTHLY (MRC/MRR)</div>' +
-      '<table><tr class="thr"><th class="c">No</th><th>Vendor</th><th>Item Code</th><th>Item Description</th><th class="c">Unit</th><th class="r">Cost/mo</th><th class="r">Total Cost</th><th class="r">MSRP</th><th class="r">Sale/mo</th><th class="r">Total Sale</th><th class="r">Profit</th></tr>' +
-      mrcRows + '<tr class="yel"><td colspan="6" class="r"><b>รวม ค่าใช้จ่ายรายเดือน (MRC)</b></td><td class="r"><b>' + _es2(mrcCost) + '</b></td><td></td><td></td><td class="r"><b>' + _es2(mrcSale) + '</b></td><td class="r"><b>' + _es2(mrcSale - mrcCost) + '</b></td></tr></table>' +
+      '<table class="bt"><tr class="thr"><th class="c">No</th><th>Vendor</th><th>Item Code</th><th>Item Description</th><th class="c">Unit</th><th class="r">Cost/mo</th><th class="r">Total Cost</th><th class="r">MSRP</th><th class="r">Sale/mo</th><th class="r">Total Sale</th><th class="r">Profit</th></tr>' +
+      mrcRows + '<tr class="yel"><td colspan="6" class="r"><b>รวม ค่าใช้จ่ายรายเดือน (MRC)</b></td><td class="r brown"><b>' + _es2(mrcCost) + '</b></td><td></td><td></td><td class="r brown"><b>' + _es2(mrcSale) + '</b></td><td class="r"><b>' + _es2(mrcSale - mrcCost) + '</b></td></tr></table>' +
       // Summary + signatures
       '<table style="margin-top:8px;"><tr><td style="width:60%;vertical-align:top;border:none;">' +
-      '<table><tr class="gray"><td><b>Revenue</b></td><td class="r">100%</td><td class="r"><b>' + _es2(_rev) + '</b></td></tr>' +
+      '<table class="sum"><tr><td><b>Revenue</b></td><td class="r">100%</td><td class="r"><b>' + _es2(_rev) + '</b></td></tr>' +
       _bdRows +
-      '<tr class="gray"><td><b>Gross Profit (Discount Rate 6% per year)</b></td><td class="r">' + esc(d.grossMargin || '') + '</td><td class="r"><b>' + _es2(_gross) + '</b></td></tr>' +
+      '<tr><td><b>Gross Profit (Discount Rate 6% per year)</b></td><td class="r">' + esc(d.grossMargin || '') + '</td><td class="r"><b>' + _es2(_gross) + '</b></td></tr>' +
       '<tr><td>ค่า Overhead Cost</td><td class="r" style="color:#888;">' + _pct(_oh) + '</td><td class="r">' + _es2(_oh) + '</td></tr>' +
-      '<tr class="gray"><td><b>Net Profit (Discount Rate 6% per year)</b></td><td class="r"><b>' + esc(d.netMargin || '') + '</b></td><td class="r"><b>' + _es2(_net) + '</b></td></tr></table></td>' +
+      '<tr><td><b>Net Profit (Discount Rate 6% per year)</b></td><td class="r"><b>' + esc(d.netMargin || '') + '</b></td><td class="r"><b>' + _es2(_net) + '</b></td></tr></table></td>' +
       '<td style="vertical-align:top;border:none;padding-left:10px;">' +
       '<table class="sigt">' +
       _sig('Head of Pre-Sales', d.sigPresale) + _sig('Head of Sales', d.sigSales) + _sig('C-Level', d.sigCOO) + _sig('CEO', d.sigCEO) +
