@@ -5122,7 +5122,8 @@ window.onload = function() {
     const _sig = (lbl, nm) => '<tr><td class="lbl">' + esc(lbl) + '</td></tr><tr><td class="sigc"><div class="sigln"></div>( ' + esc(nm || '') + ' )<br>Date : __/__/____</td></tr>';
     // colgroup: ความกว้างคอลัมน์ชุดเดียวกัน ทำให้ตาราง One Time + Monthly ตรงกันเป๊ะ (No/Supplier=Vendor/...)
     const _cg11 = '<colgroup><col style="width:4%"><col style="width:8%"><col style="width:10%"><col style="width:26%"><col style="width:5%"><col style="width:8%"><col style="width:9%"><col style="width:7%"><col style="width:8%"><col style="width:9%"><col style="width:6%"></colgroup>';
-    const _cg5 = '<colgroup><col style="width:4%"><col style="width:12%"><col style="width:55%"><col style="width:12%"><col style="width:17%"></colgroup>';
+    // Operation table กว้าง 70% + คอลัมน์ Total Cost (สุดท้าย) = 12.9% ของตาราง = 9% ของหน้า → ขอบ 61-70% ตรงกับ Total Cost ของ Investment (col7 ใน _cg11)
+    const _cg5 = '<colgroup><col style="width:5.7%"><col style="width:17.1%"><col style="width:52.9%"><col style="width:11.4%"><col style="width:12.9%"></colgroup>';
     const dd = d.date instanceof Date ? d.date : new Date();
     const dateStr = dd.getDate() + '-' + (dd.getMonth() + 1) + '-' + dd.getFullYear();
     const oprLabel = {
@@ -5206,7 +5207,7 @@ window.onload = function() {
       '.kv td{border:none;padding:0.5px 4px;} .sd{border-bottom:1px solid #d9d9d9;min-height:13px;padding:0.5px 2px;}' +
       '.sec{font-weight:700;font-size:10px;margin:6px 0 1px;}' +
       '.sigt td{border:1px solid #333;padding:2px 4px;} .sigt .lbl{background:#ffff99;font-weight:600;text-align:center;} .sigt .sigc{text-align:center;padding-top:18px;} .sigt .sigln{width:58%;margin:0 auto 1px;border-bottom:1px solid #333;height:0;}' +
-      '.doc{width:100%;} .doc>thead>tr>td,.doc>tbody>tr>td{border:none;padding:0;}' +
+      '.doc{width:100%;} .doc>thead>tr>td{border:none;padding:0 0 14px;} .doc>tbody>tr>td{border:none;padding:0;}' +
       '.opt th:nth-child(3),.opt td:nth-child(3){border-right:none;} .opt th:nth-child(4),.opt td:nth-child(4){border-left:none;border-right:none;} .opt th:nth-child(5),.opt td:nth-child(5){border-left:none;}' +
       '</style></head><body>' +
       '<table class="doc"><thead><tr><td>' +
@@ -5234,7 +5235,7 @@ window.onload = function() {
       '<tr class="blue"><td colspan="11">Investment Cost (Hardware/Software)</td></tr>' + invRows +
       '<tr class="yel"><td colspan="6" class="r"><b>ค่าบริการจ่ายครั้งเดียว (OTC)</b></td><td class="r brown"><b>' + _es2(invCost) + '</b></td><td></td><td></td><td class="r brown"><b>' + _es2(invSale) + '</b></td><td class="r"><b>' + _es2(invSale - invCost) + '</b></td></tr></table>' +
       '<div class="sec">Operation Cost</div>' +
-      '<table class="opt">' + _cg5 + '<tr class="thr"><th class="c">No</th><th>Code</th><th>Description</th><th class="r">%</th><th class="r">Total Cost</th></tr>' + oprRows +
+      '<table class="opt" style="width:70%;">' + _cg5 + '<tr class="thr"><th class="c">No</th><th>Code</th><th>Description</th><th class="r">%</th><th class="r">Total Cost</th></tr>' + oprRows +
       '<tr class="yel"><td colspan="4" class="r"><b>รวม ค่าใช้จ่ายครั้งเดียว (Operation)</b></td><td class="r"><b>' + _es2(oprTotal) + '</b></td></tr></table>' +
       // MONTHLY table
       '<div class="sec">MONTHLY (MRC/MRR)</div>' +
