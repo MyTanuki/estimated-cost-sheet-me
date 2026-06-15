@@ -534,7 +534,7 @@
       <div class="logo-icon">1A</div>
       <div>
         <div class="app-title">Estimated Cost Sheet</div>
-        <div class="app-subtitle">EST-202605-001 · Rev 2.4(7) · Production Logic</div>
+        <div class="app-subtitle" id="estNoLabel">EST-202605-001 · Rev 2.4(7) · Production Logic</div>
       </div>
     </div>
     <div class="header-actions">
@@ -552,8 +552,10 @@
       <span id="authUserBadge" style="display:none; align-items:center; gap:6px; font-size:11px; padding:4px 8px; background:var(--bg-secondary); border:1px solid var(--border-strong); border-radius:var(--radius-sm); color:var(--text-secondary);"></span>
       <button class="btn" id="btnLogout" onclick="handleLogout()" style="display:none;"><i class="ti ti-logout"></i> ออกจากระบบ</button>
       <span class="badge badge-warning"><i class="ti ti-edit" style="vertical-align: -2px;"></i> Draft</span>
+      <button class="btn" id="btnNewEst" onclick="newEstDocument()"><i class="ti ti-file-plus"></i> New</button>
+      <button class="btn" id="btnLoadEst" onclick="openLoadModal()"><i class="ti ti-folder-open"></i> Load</button>
       <button class="btn btn-primary" id="btnSave" onclick="doSave()"><i class="ti ti-device-floppy"></i> Save</button>
-      <button class="btn btn-primary" id="btnSubmit" onclick="submitForApproval()"><i class="ti ti-send"></i> Submit</button>
+      <button class="btn btn-primary" id="btnSubmit" onclick="submitSave()"><i class="ti ti-send"></i> Submit</button>
     </div>
   </div>
 
@@ -571,6 +573,20 @@
       <div id="authError" style="display:none; font-size:12px; color:#dc2626; background:#fef2f2; border:1px solid #fecaca; border-radius:6px; padding:8px 10px; margin-bottom:12px;"></div>
       <button class="btn btn-primary" id="btnAuthLogin" onclick="handleLogin()" style="width:100%; justify-content:center; margin-bottom:8px;"><i class="ti ti-login"></i> เข้าสู่ระบบ</button>
       <button class="btn" id="btnAuthMagic" onclick="handleMagicLink()" style="width:100%; justify-content:center;"><i class="ti ti-mail"></i> ส่งลิงก์เข้าสู่ระบบทางอีเมล</button>
+    </div>
+  </div>
+
+  <!-- ===== Load Estimated Cost Sheet (multi-document) — เห็นเฉพาะใบของตัวเอง ===== -->
+  <div id="loadModal" style="display:none; position:fixed; inset:0; z-index:9998; background:rgba(15,23,42,0.45); align-items:center; justify-content:center;">
+    <div style="width:560px; max-width:94vw; max-height:80vh; background:white; border-radius:12px; box-shadow:0 20px 50px rgba(0,0,0,0.3); padding:20px; box-sizing:border-box; display:flex; flex-direction:column;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+        <div style="font-size:16px; font-weight:700; color:var(--primary-dark);">เปิดเอกสาร Estimated Cost Sheet</div>
+        <button class="btn" onclick="closeLoadModal()" style="padding:2px 8px;">✕</button>
+      </div>
+      <div style="font-size:11px; color:var(--text-secondary); margin-bottom:10px;">แสดงเฉพาะเอกสารที่คุณเป็นผู้สร้าง · เรียงตามแก้ไขล่าสุด</div>
+      <div id="loadListBody" style="overflow:auto; border:1px solid var(--border-strong); border-radius:8px;">
+        <div style="padding:20px; text-align:center; color:var(--text-secondary); font-size:12px;">กำลังโหลด…</div>
+      </div>
     </div>
   </div>
 
@@ -613,7 +629,7 @@
         </div>
         <div class="form-group">
           <label class="form-label">Payment Type</label>
-          <select class="form-select">
+          <select class="form-select" id="paymentType">
             <option>Lumpsum</option><option>Buffet</option><option>Minimum</option>
             <option>Per Minute</option><option>Capped</option><option>One Time</option><option>Rental</option>
           </select>
@@ -652,6 +668,7 @@
         <div class="form-group">
           <label class="form-label">Sale Group / Team <span class="required">*</span></label>
           <select class="form-select" id="saleGroup" onchange="onSaleGroupChange()">
+            <option value="">— Sale Group / Team —</option>
             <option>Inside & Online</option>
             <option selected>Account Management 1</option>
             <option>Account Management 2</option>
@@ -665,6 +682,7 @@
         <div class="form-group">
           <label class="form-label">Sale Person <span class="required">*</span></label>
           <select class="form-select" id="salePerson">
+            <option value="">— Sale Name —</option>
             <option selected>Chananthicha Wongsan (คุณแอ๊ว)</option>
             <option>Parinya Sahabhatsombut (คุณเม้ง)</option>
             <option>Pimpilai Puanglamyai (คุณพิม)</option>
@@ -676,7 +694,8 @@
         </div>
         <div class="form-group">
           <label class="form-label">Pre-Sales <span class="required">*</span></label>
-          <select class="form-select">
+          <select class="form-select" id="preSales">
+            <option value="">— Presale Name —</option>
             <option>Noppadol Sanmaneechai</option>
             <option>Chaiyawat Sukmanee (คุณวิน)</option>
             <option>Nitinat Chumcumsin (คุณแป๊บ)</option>
@@ -2167,15 +2186,39 @@
   function onServiceChange() {
     // Marketing % (OPR-100010) + approval thresholds เปลี่ยนตาม service → คำนวณใหม่ทั้งสาย
     if (typeof recalcAll === 'function') recalcAll();
+    if (typeof updatePipelineNames === 'function') updatePipelineNames();
   }
   function onSaleGroupChange() {
     const grp = document.getElementById('saleGroup').value;
     const data = saleTeams[grp];
+    const hint = document.querySelector('#salePerson + .field-hint');
     if (data) {
-      const hint = document.querySelector('#salePerson + .field-hint');
       if (hint) hint.innerHTML = `✓ Head of Sales: ${data.head} · C-Level: ${data.cLevel} (${data.cLevelName})`;
-    }
+    } else if (hint) { hint.innerHTML = ''; }
+    if (typeof updatePipelineNames === 'function') updatePipelineNames();
   }
+
+  // ชื่อแต่ละขั้นใน Dynamic Approval Pipeline อ้างอิง Approval Flow จริง (serviceData + saleTeams)
+  // step1 SA Manager = ผู้ดูแล service (serviceData.headName) · step2 Head of Sales = หัวหน้าทีม (saleTeams.head)
+  // step3 C-Level = saleTeams.cLevelName/cLevel (COO/CPO/COS) · step4 CEO คงที่
+  function _pplInitials(name) { const p = (name || '').trim().split(/\s+/).filter(Boolean); return ((p[0] && p[0][0] || '') + (p[1] && p[1][0] || '')).toUpperCase() || '?'; }
+  function updatePipelineNames() {
+    try {
+      if (typeof PIPELINE_STEPS === 'undefined') return; // ยังไม่ประกาศตอน load
+      const svc = serviceData[document.getElementById('serviceType')?.value];
+      const team = saleTeams[document.getElementById('saleGroup')?.value];
+      if (svc && svc.headName) PIPELINE_STEPS[0].name = svc.headName;
+      if (team && team.head && team.head !== '-') PIPELINE_STEPS[1].name = team.head;
+      if (team) {
+        if (team.cLevelName) PIPELINE_STEPS[2].name = team.cLevelName;
+        if (team.cLevel) PIPELINE_STEPS[2].role = team.cLevel; // STEP_ROLE_MAP รองรับ COO/CPO/COS แล้ว
+      }
+      PIPELINE_STEPS.forEach(s => { s.initials = _pplInitials(s.name); });
+      if (typeof renderPipeline === 'function') renderPipeline();
+      if (typeof updateApprovalGate === 'function') updateApprovalGate();
+    } catch (e) { /* PIPELINE_STEPS TDZ ระหว่าง load — ข้าม */ }
+  }
+  window.updatePipelineNames = updatePipelineNames;
 
   // ===== Tab Navigation =====
   let currentTab = 1;
@@ -2228,7 +2271,7 @@
   let currentUserRole = 'presale';
 
   // Map pipeline step (by role text in PIPELINE_STEPS) → the app role that may act on it
-  const STEP_ROLE_MAP = { 'SA Manager':'presale', 'Head of Sales':'sale', 'COO':'clevel', 'CEO':'ceo' };
+  const STEP_ROLE_MAP = { 'SA Manager':'presale', 'Head of Sales':'sale', 'COO':'clevel', 'CPO':'clevel', 'COS':'clevel', 'C-Level':'clevel', 'CEO':'ceo' };
 
   function onGlobalRoleChange(val) {
     currentUserRole = val || 'presale';
@@ -2512,6 +2555,12 @@
   function loadAppState() {
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem('est_form_draft') || 'null'); } catch (e) { return false; }
+    return applyState(saved);
+  }
+  window.loadAppState = loadAppState;
+
+  // นำ state object (รูปแบบเดียวกับ buildDraftState) มาใส่ฟอร์ม — ใช้ทั้ง localStorage และ payload จาก DB
+  function applyState(saved) {
     if (!saved || typeof saved !== 'object') return false;
 
     // Legacy shape (v1 = flat formData) → restore ได้เฉพาะ fields
@@ -2566,6 +2615,7 @@
     }
     return true;
   }
+  window.applyState = applyState;
 
   // ===== Charts =====
   function renderCashflowChart() {
@@ -4006,7 +4056,9 @@
   }
 
   function recalcNPV() {
-    const term = parseInt(document.getElementById('contract-term')?.value) || 36;
+    // แหล่งเทอมสัญญาเดียว = globalContractTerm (ผ่าน getContractTermMonths) — เลิกอ่าน slider ตรงๆ
+    // กันกรณี slider Tab 5 กับ select Tab 1 ไม่ตรงกัน (MRC/Summary ใช้ select, NPV เคยใช้ slider)
+    const term = (typeof getContractTermMonths === 'function') ? getContractTermMonths() : (parseInt(document.getElementById('contract-term')?.value) || 36);
     const rateRaw = parseFloat(document.getElementById('discount-rate')?.value);
     const rate = isNaN(rateRaw) ? 6 : rateRaw; // อนุญาต 0% (เดิม `|| 6` ทำให้ตั้ง 0 ไม่ได้)
     const credit = parseInt(document.getElementById('free-period')?.value) || 0;
@@ -4040,8 +4092,18 @@
   ['contract-term', 'discount-rate', 'free-period'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('input', () => {
-      recalcNPV();
-      // MRC table ใช้ term/rate/credit ตัวเดียวกัน — re-render ให้ตัวเลขตรง
+      // slider Tab 5 = แหล่ง input ของเทอม → เขียนกลับเข้า globalContractTerm (แหล่งเดียว)
+      // ตั้งค่าตรงๆ ไม่ dispatch (กัน loop กับ onContractTermChange)
+      if (id === 'contract-term') {
+        const sel = document.getElementById('globalContractTerm');
+        if (sel && sel.value !== el.value) {
+          sel.value = el.value;
+          const kpi = document.getElementById('kpi-contract-term'); if (kpi) kpi.textContent = el.value + ' mo.';
+          const sum = document.getElementById('summary-contract-term'); if (sum) sum.textContent = el.value + ' mo.';
+        }
+      }
+      // recalcAll ครอบ NPV + Summary + OPR; render ให้ตาราง MRC (TOTAL COST/NPV SALE) ตรงเทอมใหม่
+      if (typeof recalcAll === 'function') recalcAll(); else recalcNPV();
       if (typeof mrcManager !== 'undefined' && mrcManager.render) mrcManager.render();
     });
   });
@@ -5738,6 +5800,43 @@ window.onload = function() {
       }));
       try { if (typeof renderQuotationList === 'function') renderQuotationList(); } catch (e) {}
       return { ok: true, count: quotations.length };
+    },
+
+    // ---- Multi-document: list (เฉพาะของตัวเอง) + load payload กลับเข้าฟอร์ม ----
+    async listEstDocuments() {
+      if (!AUTH_CONFIG.enabled || !Auth.isAuthed()) return { skipped: true, rows: [] };
+      const headers = await Auth.authHeaders();
+      if (!headers) return { skipped: true, rows: [] };
+      const uid = this._appUserId();
+      let url = DB_CONFIG.url + '/rest/v1/est_document?select=est_no,project_name,customer_no,status,net_margin_pct,updated_at&order=updated_at.desc';
+      if (uid) url += '&created_by=eq.' + uid; // เห็นเฉพาะใบของตัวเอง
+      try {
+        const r = await fetch(url, { headers });
+        if (!r.ok) return { skipped: true, error: r.status, rows: [] };
+        const rows = await r.json();
+        return { ok: true, rows: Array.isArray(rows) ? rows : [] };
+      } catch (e) { return { skipped: true, error: e.message, rows: [] }; }
+    },
+
+    async loadEstDocument(estNo) {
+      if (!AUTH_CONFIG.enabled || !Auth.isAuthed()) return { skipped: true };
+      const headers = await Auth.authHeaders();
+      if (!headers) return { skipped: true };
+      let rows;
+      try {
+        const r = await fetch(DB_CONFIG.url + '/rest/v1/est_document?select=est_no,payload&est_no=eq.' + encodeURIComponent(estNo), { headers });
+        if (!r.ok) return { skipped: true, error: r.status };
+        rows = await r.json();
+      } catch (e) { return { skipped: true, error: e.message }; }
+      if (!Array.isArray(rows) || !rows.length) return { skipped: true, reason: 'not found' };
+      const doc = rows[0];
+      try { localStorage.setItem(EST_NO_KEY, doc.est_no); } catch (e) {}
+      if (doc.payload && typeof applyState === 'function') { try { applyState(doc.payload); } catch (e) {} }
+      try { if (typeof updateEstNoDisplay === 'function') updateEstNoDisplay(); } catch (e) {}
+      try { if (typeof recalcAll === 'function') recalcAll(); } catch (e) {}
+      try { if (mrcManager && mrcManager.render) mrcManager.render(); } catch (e) {}
+      try { await this.loadApprovalState(); } catch (e) {}
+      return { ok: true, est_no: doc.est_no };
     }
   };
   window.DbWrite = DbWrite;
@@ -5750,6 +5849,113 @@ window.onload = function() {
       .catch(e => dbNotify('ส่งอนุมัติไม่สำเร็จ: ' + e.message, true));
   }
   window.submitForApproval = submitForApproval;
+
+  // ===== Multi-document: New / Load / est_no display / Submit(save) =====
+  function updateEstNoDisplay() {
+    const el = document.getElementById('estNoLabel');
+    let no = 'EST-202605-001';
+    try { if (typeof DbWrite !== 'undefined') no = DbWrite.estNo(); } catch (e) {}
+    if (el) el.textContent = no + ' · Rev 2.4(7) · Production Logic';
+  }
+  window.updateEstNoDisplay = updateEstNoDisplay;
+
+  // เอกสารใหม่ (Blocker 2 — รองรับหลายเอกสาร): est_no ใหม่ + ล้างฟอร์ม + reset pipeline
+  function newEstDocument() {
+    if (!confirm('สร้างเอกสารใหม่? ข้อมูลที่ยังไม่บันทึกในใบปัจจุบันจะหาย')) return;
+    const d = new Date();
+    const newNo = 'EST-' + d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(Math.floor(1000 + Math.random() * 9000));
+    try { localStorage.setItem('est_no_current', newNo); localStorage.removeItem('est_form_draft'); } catch (e) {}
+    investmentRows = []; rowIdCounter = 0; if (typeof renderInvestmentRows === 'function') renderInvestmentRows();
+    try { mrcManager.state.rows = []; mrcManager.state.counter = 0; mrcManager.render(); } catch (e) {}
+    try { installManager.state.rows = []; installManager.state.counter = 0; installManager.render(); } catch (e) {}
+    try { pmcmManager.state.rows = []; pmcmManager.state.counter = 0; pmcmManager.render(); } catch (e) {}
+    try { serviceLines = []; if (typeof renderServiceLines === 'function') renderServiceLines(); } catch (e) {}
+    // ล้างฟิลด์ identity + คืนค่า default ทั่วไปของ select
+    ['custName', 'projectName'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+    setVal('projectType', 'New');
+    setVal('paymentType', 'One Time');
+    setVal('serviceType', '');     // — เลือก Service —
+    setVal('saleGroup', '');       // — Sale Group / Team —
+    setVal('salePerson', '');      // — Sale Name —
+    setVal('preSales', '');        // — Presale Name —
+    if (typeof onSaleGroupChange === 'function') onSaleGroupChange(); // เคลียร์ hint Head of Sales
+    // Contract = 12 เดือน (sync slider + recalc ผ่าน onContractTermChange)
+    const termEl = document.getElementById('globalContractTerm');
+    if (termEl) { termEl.value = '12'; if (typeof onContractTermChange === 'function') onContractTermChange('12'); }
+    try {
+      if (typeof pipelineState !== 'undefined') {
+        pipelineState.steps.forEach((s, i) => { s.status = i === 0 ? 'current' : 'waiting'; s.ts = null; s.comment = ''; s.history = []; });
+        pipelineState.overallStatus = 'in_progress';
+      }
+    } catch (e) {}
+    const th = document.getElementById('approvalThread'); if (th) th.innerHTML = '';
+    updateEstNoDisplay();
+    if (typeof recalcAll === 'function') recalcAll();
+    if (typeof renderPipeline === 'function') renderPipeline();
+    if (typeof dbNotify === 'function') dbNotify('สร้างเอกสารใหม่: ' + newNo);
+  }
+  window.newEstDocument = newEstDocument;
+
+  function closeLoadModal() { const m = document.getElementById('loadModal'); if (m) m.style.display = 'none'; }
+  window.closeLoadModal = closeLoadModal;
+
+  async function openLoadModal() {
+    const m = document.getElementById('loadModal'); if (m) m.style.display = 'flex';
+    const body = document.getElementById('loadListBody');
+    if (typeof DbWrite === 'undefined' || !AUTH_CONFIG.enabled || !Auth.isAuthed()) {
+      if (body) body.innerHTML = '<div style="padding:20px; text-align:center; color:var(--text-secondary); font-size:12px;">ต้องเข้าสู่ระบบก่อนจึงจะโหลดเอกสารจากฐานข้อมูลได้</div>';
+      return;
+    }
+    if (body) body.innerHTML = '<div style="padding:20px; text-align:center; color:var(--text-secondary); font-size:12px;">กำลังโหลด…</div>';
+    const res = await DbWrite.listEstDocuments();
+    renderLoadList(res.rows || []);
+  }
+  window.openLoadModal = openLoadModal;
+
+  function renderLoadList(rows) {
+    const body = document.getElementById('loadListBody');
+    if (!body) return;
+    if (!rows.length) { body.innerHTML = '<div style="padding:20px; text-align:center; color:var(--text-secondary); font-size:12px;">ยังไม่มีเอกสารที่คุณสร้างไว้ในฐานข้อมูล</div>'; return; }
+    const esc = (typeof escapeHtml === 'function') ? escapeHtml : (s => String(s == null ? '' : s));
+    const fmtD = (typeof fmtDateDMY === 'function') ? fmtDateDMY : (s => (s || '').slice(0, 10));
+    body.innerHTML = rows.map(r => {
+      const margin = (r.net_margin_pct != null) ? (+r.net_margin_pct).toFixed(1) + '%' : '—';
+      return '<div onclick="loadEstByNo(\'' + esc(r.est_no) + '\')" style="display:grid; grid-template-columns:1.4fr 2fr 0.9fr 0.9fr 1fr; gap:8px; align-items:center; padding:9px 12px; border-bottom:1px solid var(--border); cursor:pointer; font-size:12px;" onmouseover="this.style.background=\'var(--bg-secondary)\'" onmouseout="this.style.background=\'\'">' +
+        '<div style="font-weight:500;">' + esc(r.est_no) + '</div>' +
+        '<div style="color:var(--text-secondary);">' + esc(r.project_name || '-') + '</div>' +
+        '<div><span class="badge">' + esc(r.status || 'draft') + '</span></div>' +
+        '<div class="right">' + margin + '</div>' +
+        '<div style="font-size:11px; color:var(--text-tertiary);">' + fmtD(r.updated_at) + '</div>' +
+        '</div>';
+    }).join('');
+  }
+  window.renderLoadList = renderLoadList;
+
+  async function loadEstByNo(estNo) {
+    closeLoadModal();
+    if (typeof DbWrite === 'undefined') return;
+    try {
+      const r = await DbWrite.loadEstDocument(estNo);
+      if (r && r.ok) dbNotify('เปิดเอกสาร ' + r.est_no + ' แล้ว');
+      else dbNotify('เปิดเอกสารไม่สำเร็จ' + (r && r.reason ? ': ' + r.reason : ''), true);
+    } catch (e) { dbNotify('เปิดเอกสารไม่สำเร็จ: ' + e.message, true); }
+  }
+  window.loadEstByNo = loadEstByNo;
+
+  // Submit = "save เฉยๆ" — บันทึกเอกสารทั้งใบลงฐานข้อมูล Estimate Cost (ไม่ trigger approval)
+  // doSave() จัดการ localStorage + เขียน est_document (payload + snapshot project_value/net_profit/
+  // net_margin/required_level) ลง DB best-effort พร้อม toast อยู่แล้ว — submitSave แค่ validate + เรียก
+  function submitSave() {
+    const cust = (document.getElementById('custName')?.value || '').trim();
+    const proj = (document.getElementById('projectName')?.value || '').trim();
+    if (!cust || !proj) { if (typeof dbNotify === 'function') dbNotify('กรุณากรอก Customer และ Project ก่อนบันทึก', true); return; }
+    if (typeof doSave === 'function') doSave();
+    if (!(AUTH_CONFIG.enabled && typeof Auth !== 'undefined' && Auth.isAuthed()) && typeof dbNotify === 'function') {
+      dbNotify('บันทึกในเครื่องแล้ว (เปิด AUTH + เข้าสู่ระบบเพื่อบันทึกลงฐานข้อมูล)');
+    }
+  }
+  window.submitSave = submitSave;
 
   // PostgREST คืนสูงสุด 1,000 แถว/ครั้ง → ดึงเป็นหน้าด้วย Range header (item มี 6,221 แถว)
   async function fetchTable(table) {
@@ -5844,11 +6050,11 @@ window.onload = function() {
   function onContractTermChange(val) {
     const months = parseInt(val) || 36;
 
-    // 1. Sync Tab 5 NPV slider
+    // 1. Sync Tab 5 NPV slider (ตั้งค่าตรงๆ ไม่ dispatch — recalcAll ท้ายฟังก์ชันครอบ NPV แล้ว กัน recalc ซ้ำ/loop)
     const slider = document.getElementById('contract-term');
     if (slider) {
       slider.value = months;
-      slider.dispatchEvent(new Event('input'));
+      const sliderVal = document.getElementById('contract-term-val'); if (sliderVal) sliderVal.textContent = months + ' mo';
     }
 
     // 2. Update Tab 1 Header KPI "ระยะสัญญา"
@@ -5876,8 +6082,9 @@ window.onload = function() {
       if (sumDates) sumDates.textContent = fmtDateDMY(startEl.value) + ' – ' + fmtDateDMY(d);
     }
 
-    // 5. คำนวณใหม่ทั้งระบบ (NPV + Summary + OPR)
+    // 5. คำนวณใหม่ทั้งระบบ (NPV + Summary + OPR) + re-render ตาราง MRC ให้ TOTAL COST/NPV SALE ตรงเทอมใหม่
     if (typeof recalcAll === 'function') recalcAll();
+    if (typeof mrcManager !== 'undefined' && mrcManager.render) mrcManager.render();
   }
 
   // Sync end date when start date changes
@@ -5898,6 +6105,8 @@ window.onload = function() {
     if (typeof renderPipeline === 'function') renderPipeline();
     if (typeof onGlobalRoleChange === 'function') onGlobalRoleChange(document.getElementById('globalUserRole')?.value || 'presale');
     if (typeof loadMasterData === 'function') loadMasterData(); // async — master จาก Supabase/cache (Phase 1)
+    if (typeof updateEstNoDisplay === 'function') updateEstNoDisplay(); // แสดง est_no จริงที่ subtitle
+    if (typeof updatePipelineNames === 'function') updatePipelineNames(); // ชื่อ pipeline อิง service/team ปัจจุบัน
     if (typeof initAuth === 'function') initAuth(); // Phase 2.4 — gate ทำงานเมื่อ AUTH_CONFIG.enabled = true เท่านั้น
   }, 120);
 
