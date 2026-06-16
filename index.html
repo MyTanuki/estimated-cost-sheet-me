@@ -2086,7 +2086,9 @@
           <label style="font-size:11px;">C4 %<br><input id="eshC3" type="number" min="1" max="100" step="1" oninput="eshPreviewRender()" style="width:54px;"></label>
           <label style="font-size:11px;">C5 %<br><input id="eshC4" type="number" min="1" max="100" step="1" oninput="eshPreviewRender()" style="width:54px;"></label>
           <label style="font-size:11px;">C6 %<br><input id="eshC5" type="number" min="1" max="100" step="1" oninput="eshPreviewRender()" style="width:54px;"></label>
-          <label style="font-size:11px;">โลโก้ px<br><input id="eshLogoW" type="number" min="0" max="200" step="2" oninput="eshPreviewRender()" style="width:60px;"></label>
+          <label style="font-size:11px;">โลโก้กว้าง px<br><input id="eshLogoW" type="number" min="1" max="200" step="2" oninput="eshPreviewRender()" style="width:60px;"></label>
+          <label style="font-size:11px;">โลโก้ X (ซ้าย)<br><input id="eshLogoX" type="number" step="1" oninput="eshPreviewRender()" style="width:60px;"></label>
+          <label style="font-size:11px;">โลโก้ Y (บน)<br><input id="eshLogoY" type="number" step="1" oninput="eshPreviewRender()" style="width:60px;"></label>
           <span id="eshSumLabel" style="font-size:11px; margin-left:auto;"></span>
         </div>
         <div style="margin-top:12px; font-size:11px; color:var(--text-secondary);">ตัวอย่าง (Page Header จากใบปัจจุบัน)</div>
@@ -5147,15 +5149,18 @@ window.onload = function() {
     };
   }
 
-  // Page Header layout settings — ปรับผ่านปุ่ม gear ข้างปุ่มพิมพ์ (6 ความกว้างคอลัมน์ % + ความกว้างโลโก้ px), เก็บใน localStorage ใช้ทั้ง preview และพิมพ์จริง
-  const ESH_HDR_DEFAULT = { cols: [18, 20, 13, 17, 14, 18], logoW: 60 };
+  // Page Header layout settings — ปรับผ่านปุ่ม gear ข้างปุ่มพิมพ์ (6 ความกว้างคอลัมน์ % + โลโก้: กว้าง/ตำแหน่ง X,Y px ลอยทับตาราง), เก็บใน localStorage ใช้ทั้ง preview และพิมพ์จริง
+  const ESH_HDR_DEFAULT = { cols: [18, 20, 13, 17, 14, 18], logoW: 54, logoX: 2, logoY: 2 };
   function getEshHdr() {
+    const def = { cols: ESH_HDR_DEFAULT.cols.slice(), logoW: ESH_HDR_DEFAULT.logoW, logoX: ESH_HDR_DEFAULT.logoX, logoY: ESH_HDR_DEFAULT.logoY };
     try {
       const s = JSON.parse(localStorage.getItem('esh_hdr') || 'null');
       if (s && Array.isArray(s.cols) && s.cols.length === 6 && s.cols.every(n => +n > 0) && +s.logoW > 0)
-        return { cols: s.cols.map(Number), logoW: +s.logoW };
+        return { cols: s.cols.map(Number), logoW: +s.logoW,
+          logoX: Number.isFinite(+s.logoX) ? +s.logoX : def.logoX,
+          logoY: Number.isFinite(+s.logoY) ? +s.logoY : def.logoY };
     } catch (e) {}
-    return { cols: ESH_HDR_DEFAULT.cols.slice(), logoW: ESH_HDR_DEFAULT.logoW };
+    return def;
   }
   // pure: สร้าง Page Header (โลโก้ + ตารางข้อมูล) — แชร์ระหว่าง preview กับเอกสารพิมพ์จริง เพื่อให้ตรงกันเป๊ะ
   function buildPageHeaderHtml(d, hdr) {
@@ -5168,7 +5173,7 @@ window.onload = function() {
     const cg = '<colgroup>' + hdr.cols.map(w => '<col style="width:' + w + '%">').join('') + '</colgroup>';
     return '<div style="position:relative;">' +
       '<div class="hd">Estimated Cost Sheet (by Presale)</div>' +
-      '<table class="kvn" style="margin-top:4px;margin-left:' + lw + 'px;width:calc(100% - ' + lw + 'px);table-layout:fixed;">' +
+      '<table class="kvn" style="margin-top:4px;width:100%;table-layout:fixed;">' +
       cg +
       '<tr><td><b>Customer :</b></td><td colspan="3" style="border-right:1px solid #aaa;">' + esc(d.cust) + '</td><td><b>Estimated Cost No :</b></td><td>' + esc(d.estNo) + '</td></tr>' +
       '<tr><td style="border-top:1px solid #ddd;"><b>Project :</b></td><td colspan="3" style="border-top:1px solid #ddd;border-right:1px solid #aaa;">' + esc(d.project) + '</td><td style="border-top:1px solid #ddd;"><b>Estimated Date :</b></td><td style="border-top:1px solid #ddd;">' + dateStr + '</td></tr>' +
@@ -5177,7 +5182,7 @@ window.onload = function() {
       '<tr><td style="border-top:1px solid #aaa;border-right:1px solid #aaa;"><b>ค่าบริการครั้งเดียว :</b></td><td style="border-top:1px solid #aaa;border-right:1px solid #aaa;">' + _es2(d.inv.sale) + ' บาท</td><td style="border-top:1px solid #aaa;border-right:1px solid #aaa;"><b>มูลค่าโครงการ :</b></td><td style="border-top:1px solid #aaa;border-right:1px solid #aaa;">' + _es2(d.pvEx) + ' (ไม่รวม VAT)</td><td style="border-top:1px solid #aaa;border-right:1px solid #aaa;"><b>ระยะสัญญา :</b></td><td style="border-top:1px solid #aaa;">' + d.term + ' เดือน</td></tr>' +
       '<tr><td style="border-top:1px solid #ddd;border-right:1px solid #aaa;"><b>ค่าบริการรายเดือน :</b></td><td style="border-top:1px solid #ddd;border-right:1px solid #aaa;">' + _es2(d.mrcMonth) + ' บาท/เดือน</td><td style="border-top:1px solid #ddd;border-right:1px solid #aaa;">:</td><td style="border-top:1px solid #ddd;border-right:1px solid #aaa;">' + _es2(d.pvVat) + ' (รวม VAT)</td><td style="border-top:1px solid #ddd;border-right:1px solid #aaa;"></td><td style="border-top:1px solid #ddd;"></td></tr>' +
       '</table>' +
-      (logo ? '<img src="' + logo + '" style="position:absolute;top:0;left:0;width:' + lw + 'px;z-index:1;">' : '') +
+      (logo ? '<img src="' + logo + '" style="position:absolute;top:' + hdr.logoY + 'px;left:' + hdr.logoX + 'px;width:' + lw + 'px;z-index:1;">' : '') +
       '</div>';
   }
 
@@ -5332,11 +5337,15 @@ window.onload = function() {
     '.kvn{border:1px solid #333;border-collapse:collapse;}.kvn td{border:none;padding:2px 6px;}';
   function eshReadInputs() {
     const cols = [0,1,2,3,4,5].map(i => +document.getElementById('eshC' + i).value || 0);
-    return { cols, logoW: +document.getElementById('eshLogoW').value || 0 };
+    return { cols, logoW: +document.getElementById('eshLogoW').value || 0,
+      logoX: +document.getElementById('eshLogoX').value || 0,
+      logoY: +document.getElementById('eshLogoY').value || 0 };
   }
   function eshFillInputs(hdr) {
     hdr.cols.forEach((w, i) => { document.getElementById('eshC' + i).value = w; });
     document.getElementById('eshLogoW').value = hdr.logoW;
+    document.getElementById('eshLogoX').value = hdr.logoX;
+    document.getElementById('eshLogoY').value = hdr.logoY;
   }
   function eshPreviewRender() {
     const hdr = eshReadInputs();
@@ -5352,7 +5361,7 @@ window.onload = function() {
     eshPreviewRender();
   }
   function closeEshSettings() { document.getElementById('eshSettingsModal').style.display = 'none'; }
-  function resetEshSettings() { eshFillInputs({ cols: ESH_HDR_DEFAULT.cols.slice(), logoW: ESH_HDR_DEFAULT.logoW }); eshPreviewRender(); }
+  function resetEshSettings() { eshFillInputs({ cols: ESH_HDR_DEFAULT.cols.slice(), logoW: ESH_HDR_DEFAULT.logoW, logoX: ESH_HDR_DEFAULT.logoX, logoY: ESH_HDR_DEFAULT.logoY }); eshPreviewRender(); }
   function saveEshSettings() {
     const hdr = eshReadInputs();
     if (hdr.cols.some(w => w <= 0) || hdr.logoW <= 0) { if (typeof dbNotify === 'function') dbNotify('ค่าต้องมากกว่า 0', true); return; }
