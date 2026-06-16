@@ -5197,7 +5197,7 @@ window.onload = function() {
       ['ค่าดำเนินการฝ่ายขาย ค่าตรวจรับงาน และอื่นๆ', _o[4] || 0]
     ];
     const _gross = d.grossProfit || 0, _net = d.netProfit || 0, _oh = _gross - _net;
-    const _bdRows = _bd.map(x => '<tr><td>' + esc(x[0]) + '</td><td class="r" style="color:#888;">' + _pct(x[1]) + '</td><td class="r">' + (x[1] ? _es2(x[1]) : '-') + '</td></tr>').join('');
+    const _bdRows = _bd.map(x => '<tr><td>&nbsp;&nbsp;&nbsp;&nbsp;' + esc(x[0]) + '</td><td class="r" style="color:#888;">' + _pct(x[1]) + '</td><td class="r">' + (x[1] ? _es2(x[1]) : '-') + '</td></tr>').join('');
     return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(d.estNo) + '</title><style>' +
       '@page{size:A4;margin:9mm;} *{box-sizing:border-box;} body{font-family:"Sarabun","Tahoma",sans-serif;font-size:8.5px;color:#111;margin:0;line-height:1.1;}' +
       'table{width:100%;border-collapse:collapse;} td,th{border:1px solid #999;padding:0.5px 4px;line-height:1.15;} .r{text-align:right;} .c{text-align:center;}' +
@@ -5218,13 +5218,13 @@ window.onload = function() {
       // header key-values
       '<table class="kv" style="margin-top:4px;table-layout:fixed;border:1px solid #333;">' +
       '<tr><td><b>Customer :</b> ' + esc(d.cust) + '</td><td style="width:32%;"><b>Estimated Cost No :</b> ' + esc(d.estNo) + '</td></tr>' +
-      '<tr><td style="padding-left:16px;"><b>Project :</b> ' + esc(d.project) + '</td><td><b>Estimated Date :</b> ' + dateStr + '</td></tr>' +
-      '<tr><td style="padding-left:16px;"><b>Sale :</b> ' + esc(d.sale) + ' &nbsp; <b>Group :</b> ' + esc(d.group) + '</td><td><b>Pre-Sales :</b> ' + esc(d.preSales) + '</td></tr>' +
-      '<tr><td colspan="2" style="padding-left:16px;"><b>Type :</b> ' + esc(d.projectType) + ' &nbsp; <b>Payment :</b> ' + esc(d.payment) + ' &nbsp; <b>Service :</b> ' + esc(d.service) + '</td></tr>' +
+      '<tr><td><b>Project :</b> ' + esc(d.project) + '</td><td><b>Estimated Date :</b> ' + dateStr + '</td></tr>' +
+      '<tr><td><b>Sale :</b> ' + esc(d.sale) + ' &nbsp; <b>Group :</b> ' + esc(d.group) + '</td><td><b>Pre-Sales :</b> ' + esc(d.preSales) + '</td></tr>' +
+      '<tr><td colspan="2"><b>Type :</b> ' + esc(d.projectType) + ' &nbsp; <b>Payment :</b> ' + esc(d.payment) + ' &nbsp; <b>Service :</b> ' + esc(d.service) + '</td></tr>' +
       '<tr><td colspan="2" style="padding:0;border-top:1px solid #aaa;"><table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
       '<tr><td style="border:none;border-right:1px solid #aaa;width:33%;padding:2px 6px;"><b>ค่าบริการครั้งเดียว</b> : ' + _es2(d.inv.sale) + ' บาท</td>' +
-      '<td style="border:none;border-right:1px solid #aaa;width:34%;padding:2px 6px;"><b>มูลค่าโครงการ</b> : ' + _es2(d.pvEx) + ' (ไม่รวม VAT)</td>' +
-      '<td style="border:none;width:33%;padding:2px 6px;"><b>ระยะสัญญา</b> : ' + d.term + ' เดือน</td></tr>' +
+      '<td style="border:none;border-right:1px solid #aaa;width:35%;padding:2px 6px;"><b>มูลค่าโครงการ</b> : ' + _es2(d.pvEx) + ' (ไม่รวม VAT)</td>' +
+      '<td style="border:none;width:32%;padding:2px 6px;"><b>ระยะสัญญา</b> : ' + d.term + ' เดือน</td></tr>' +
       '<tr><td style="border:none;border-right:1px solid #aaa;border-top:1px solid #aaa;padding:2px 6px;"><b>ค่าบริการรายเดือน</b> : ' + _es2(d.mrcMonth) + ' บาท/เดือน</td>' +
       '<td style="border:none;border-right:1px solid #aaa;border-top:1px solid #aaa;padding:2px 6px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: ' + _es2(d.pvVat) + ' (รวม VAT)</td>' +
       '<td style="border:none;border-top:1px solid #aaa;padding:2px 6px;"></td></tr>' +
@@ -5254,7 +5254,7 @@ window.onload = function() {
       '<table class="sum"><tr><td><b>Revenue</b></td><td class="r">100%</td><td class="r"><b>' + _es2(_rev) + '</b></td></tr>' +
       _bdRows +
       '<tr><td><b>Gross Profit (Discount Rate 6% per year)</b></td><td class="r">' + esc(d.grossMargin || '') + '</td><td class="r"><b>' + _es2(_gross) + '</b></td></tr>' +
-      '<tr><td>ค่า Overhead Cost</td><td class="r" style="color:#888;">' + _pct(_oh) + '</td><td class="r">' + _es2(_oh) + '</td></tr>' +
+      '<tr><td>&nbsp;&nbsp;&nbsp;&nbsp;ค่า Overhead Cost</td><td class="r" style="color:#888;">' + _pct(_oh) + '</td><td class="r">' + _es2(_oh) + '</td></tr>' +
       '<tr><td><b>Net Profit (Discount Rate 6% per year)</b></td><td class="r"><b>' + esc(d.netMargin || '') + '</b></td><td class="r"><b>' + _es2(_net) + '</b></td></tr></table></td>' +
       '<td style="vertical-align:top;border:none;padding-left:10px;">' +
       '<table class="sigt">' +
