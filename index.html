@@ -225,18 +225,23 @@
   }
   .install-table .data-table-header, .install-table .data-row {
     grid-template-columns: 24px 24px 80px 2fr 60px 80px 80px 1.5fr 60px;
-    gap: 12px;
-    padding: 6px 12px;
-    min-height: 28px;
+    gap: 8px;
+    padding: 2px 8px;
+    align-items: center;
   }
   .install-table .data-table-header {
-    padding: 8px 12px;
-    font-size: 11px;
+    padding: 6px 8px;
+    font-size: 10px;
     font-weight: 600;
+    background: var(--bg-secondary);
+  }
+  .install-table .data-row {
+    padding: 2px 8px;
   }
   .install-table .data-row > div {
-    padding: 2px 4px;
+    padding: 2px 3px;
     font-size: 12px;
+    align-self: center;
   }
   .install-table .data-row select.row-input { width: 100%; }
 
