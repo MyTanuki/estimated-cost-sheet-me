@@ -225,6 +225,18 @@
   }
   .install-table .data-table-header, .install-table .data-row {
     grid-template-columns: 24px 24px 80px 2fr 60px 80px 80px 1.5fr 60px;
+    gap: 12px;
+    padding: 6px 12px;
+    min-height: 28px;
+  }
+  .install-table .data-table-header {
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .install-table .data-row > div {
+    padding: 2px 4px;
+    font-size: 12px;
   }
   .install-table .data-row select.row-input { width: 100%; }
 
@@ -1617,12 +1629,12 @@
         </div>
 
         <div id="installSubtotalRow">
-          <div class="data-row" style="background: white; font-weight: 500; border-top: 2px solid var(--border-strong);">
+          <div class="data-row" style="background: var(--primary-light); font-weight: 500; border-top: 2px solid var(--border-strong); color: var(--primary-dark);">
             <div></div>
             <div></div>
             <div></div>
-            <div style="color: var(--text-secondary); font-size: 11px;">Subtotal — Installation</div>
-            <div class="right" style="font-size: 11px; color: var(--text-secondary); white-space: nowrap;" id="install-subtotal-units">0 units</div>
+            <div style="font-size: 11px;">Subtotal — Installation</div>
+            <div class="right" style="font-size: 11px; white-space: nowrap;" id="install-subtotal-units">0 units</div>
             <div></div>
             <div class="right" id="install-subtotal-total">฿0</div>
             <div class="item-meta">→ feeds OPR-100001</div>
@@ -1672,12 +1684,12 @@
         </div>
 
         <div id="pmcmSubtotalRow">
-          <div class="data-row" style="background: white; font-weight: 500; border-top: 2px solid var(--border-strong);">
+          <div class="data-row" style="background: var(--primary-light); font-weight: 500; border-top: 2px solid var(--border-strong); color: var(--primary-dark);">
             <div></div>
             <div></div>
             <div></div>
-            <div style="color: var(--text-secondary); font-size: 11px;">Subtotal — PMCM</div>
-            <div class="right" style="font-size: 11px; color: var(--text-secondary); white-space: nowrap;" id="pmcm-subtotal-units">0 units</div>
+            <div style="font-size: 11px;">Subtotal — PMCM</div>
+            <div class="right" style="font-size: 11px; white-space: nowrap;" id="pmcm-subtotal-units">0 units</div>
             <div></div>
             <div class="right" id="pmcm-subtotal-total">฿0</div>
             <div class="item-meta">→ feeds OPR-100005</div>
