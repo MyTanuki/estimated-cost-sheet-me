@@ -1003,6 +1003,7 @@
                padding:0; cursor:pointer; margin-bottom:0;">
         <div style="width:4px; height:16px; border-radius:2px; background:var(--primary); flex-shrink:0;"></div>
         <span style="font-size:14px; font-weight:500;">ค่าใช้จ่ายอื่นๆ</span>
+        <span id="otherBadge" style="display:none; font-size:11px; color:var(--primary-dark); margin-left:8px; padding:2px 8px; background:var(--primary-light); border-radius:999px;"></span>
         <i class="ti ti-chevron-down" id="otherChevron" style="font-size:14px; color:var(--text-secondary); transition:transform 0.2s; margin-left:auto;"></i>
       </button>
       <div id="otherDetail" style="display:none; margin-top:10px;">
@@ -4403,6 +4404,15 @@
     el.textContent = parts.join(' · ');
     el.style.display = parts.length ? '' : 'none';
   }
+  function updateOtherBadge() {
+    const el = document.getElementById('otherBadge');
+    if (!el) return;
+    const listEl = document.getElementById('otherExpenseList');
+    if (!listEl) return;
+    const count = listEl.querySelectorAll('[id^="other-"]').length;
+    el.textContent = count + ' รายการ';
+    el.style.display = count ? '' : 'none';
+  }
 
   // ===== Overhead % (Tab 2) — drives OPR-100013 =====
   function getOverheadPct() {
@@ -4464,7 +4474,7 @@
       <span style="flex:1; padding:2px 4px;">${escapeHtml(type)}</span>
       <input type="text" inputmode="decimal" class="row-input fmt-num" placeholder="จำนวนเงิน" value="0"
              style="width:120px; text-align:right; padding:2px 4px; font-size:12px; border:1px solid var(--border); border-radius:var(--radius-sm);">
-      <button class="row-action row-delete" onclick="document.getElementById('other-${id}').remove(); typeof markDirty==='function'&&markDirty();" title="ลบรายการนี้" style="flex-shrink:0; width:20px; height:20px;">
+      <button class="row-action row-delete" onclick="document.getElementById('other-${id}').remove(); typeof markDirty==='function'&&markDirty(); typeof updateOtherBadge==='function'&&updateOtherBadge();" title="ลบรายการนี้" style="flex-shrink:0; width:20px; height:20px;">
         <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 7l16 0M10 11l0 6M14 11l0 6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"/></svg>
       </button>
     `;
@@ -4472,6 +4482,7 @@
 
     typeEl.value = '';
     if (customEl) { customEl.value = ''; customEl.style.display = 'none'; }
+    updateOtherBadge();
   }
 
   // ===== Collapsible Sections — All collapsed by default, per-user memory =====
