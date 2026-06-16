@@ -5204,7 +5204,7 @@ window.onload = function() {
       '.hd{background:#e8332e;color:#fff;text-align:center;font-size:15px;font-weight:700;padding:5px;letter-spacing:.5px;}' +
       '.thr th{background:#e6e6e6;color:#222;border-color:#bbb;} .gray{background:#f0f0f0;} .blue{background:#fdf3c4;font-weight:600;} .yel{background:#fff7cc;}' +
       'th.brown,td.brown{background:#fbe9da;} table.bt th:nth-child(7),table.bt td:nth-child(7),table.bt th:nth-child(10),table.bt td:nth-child(10){background:#fbe9da;} .sum td{border:none;padding:0.5px 4px;}' +
-      '.kv td{border:none;padding:2px 6px;} .sd{border-bottom:1px solid #d9d9d9;min-height:13px;padding:0.5px 2px;}' +
+      '.kv td{border:none;padding:2px 6px;} .kvn{border:1px solid #333;border-collapse:collapse;} .kvn td{border:none;padding:2px 6px;} .sd{border-bottom:1px solid #d9d9d9;min-height:13px;padding:0.5px 2px;}' +
       '.sec{font-weight:700;font-size:10px;margin:6px 0 1px;}' +
       '.sigt td{border:1px solid #333;padding:2px 4px;} .sigt .lbl{background:#ffff99;font-weight:600;text-align:center;} .sigt .sigc{text-align:center;padding-top:18px;} .sigt .sigln{width:58%;margin:0 auto 1px;border-bottom:1px solid #333;height:0;}' +
       '.doc{width:100%;} .doc>thead>tr>td{border:none;padding:0 0 8px;} .doc>tbody>tr>td{border:none;padding:0;} .pf{position:fixed;bottom:4mm;right:6mm;font-size:7px;color:#666;}' +
@@ -5213,20 +5213,14 @@ window.onload = function() {
       '<table class="doc"><thead><tr><td>' +
       '<div style="position:relative;">' +
       '<div class="hd">Estimated Cost Sheet (by Presale)</div>' +
-      // header key-values (shifted right to leave space for logo)
-      '<table class="kv" style="margin-top:4px;margin-left:60px;width:calc(100% - 60px);table-layout:fixed;border:1px solid #333;">' +
-      '<tr><td><b>Customer :</b> ' + esc(d.cust) + '</td><td style="width:32%;"><b>Estimated Cost No :</b> ' + esc(d.estNo) + '</td></tr>' +
-      '<tr><td><b>Project :</b> ' + esc(d.project) + '</td><td><b>Estimated Date :</b> ' + dateStr + '</td></tr>' +
-      '<tr><td><b>Sale :</b> ' + esc(d.sale) + ' &nbsp; <b>Group :</b> ' + esc(d.group) + '</td><td><b>Pre-Sales :</b> ' + esc(d.preSales) + '</td></tr>' +
-      '<tr><td colspan="2"><b>Type :</b> ' + esc(d.projectType) + ' &nbsp; <b>Payment :</b> ' + esc(d.payment) + ' &nbsp; <b>Service :</b> ' + esc(d.service) + '</td></tr>' +
-      '<tr><td colspan="2" style="padding:0;border-top:1px solid #aaa;"><table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
-      '<tr><td style="border:none;border-right:1px solid #aaa;width:33%;padding:2px 6px;"><b>ค่าบริการครั้งเดียว</b> : ' + _es2(d.inv.sale) + ' บาท</td>' +
-      '<td style="border:none;border-right:1px solid #aaa;width:35%;padding:2px 6px;"><b>มูลค่าโครงการ</b> : ' + _es2(d.pvEx) + ' (ไม่รวม VAT)</td>' +
-      '<td style="border:none;width:32%;padding:2px 6px;"><b>ระยะสัญญา</b> : ' + d.term + ' เดือน</td></tr>' +
-      '<tr><td style="border:none;border-right:1px solid #aaa;border-top:1px solid #aaa;padding:2px 6px;"><b>ค่าบริการรายเดือน</b> : ' + _es2(d.mrcMonth) + ' บาท/เดือน</td>' +
-      '<td style="border:none;border-right:1px solid #aaa;border-top:1px solid #aaa;padding:2px 6px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: ' + _es2(d.pvVat) + ' (รวม VAT)</td>' +
-      '<td style="border:none;border-top:1px solid #aaa;padding:2px 6px;"></td></tr>' +
-      '</table></td></tr>' +
+      '<table class="kvn" style="margin-top:4px;margin-left:60px;width:calc(100% - 60px);table-layout:fixed;">' +
+      '<colgroup><col style="width:18%"><col style="width:20%"><col style="width:13%"><col style="width:17%"><col style="width:14%"><col style="width:18%"></colgroup>' +
+      '<tr><td><b>Customer :</b></td><td colspan="3" style="border-right:1px solid #aaa;">' + esc(d.cust) + '</td><td><b>Estimated Cost No :</b></td><td>' + esc(d.estNo) + '</td></tr>' +
+      '<tr><td style="border-top:1px solid #ddd;"><b>Project :</b></td><td colspan="3" style="border-top:1px solid #ddd;border-right:1px solid #aaa;">' + esc(d.project) + '</td><td style="border-top:1px solid #ddd;"><b>Estimated Date :</b></td><td style="border-top:1px solid #ddd;">' + dateStr + '</td></tr>' +
+      '<tr><td style="border-top:1px solid #ddd;"><b>Sale :</b></td><td style="border-top:1px solid #ddd;border-right:1px solid #ddd;">' + esc(d.sale) + '</td><td style="border-top:1px solid #ddd;"><b>Group :</b></td><td style="border-top:1px solid #ddd;border-right:1px solid #aaa;">' + esc(d.group) + '</td><td colspan="2" style="border-top:1px solid #ddd;"><b>Pre-Sales :</b> ' + esc(d.preSales) + '</td></tr>' +
+      '<tr><td style="border-top:1px solid #ddd;"><b>Type :</b></td><td style="border-top:1px solid #ddd;border-right:1px solid #ddd;">' + esc(d.projectType) + '</td><td style="border-top:1px solid #ddd;"><b>Payment :</b></td><td style="border-top:1px solid #ddd;border-right:1px solid #aaa;">' + esc(d.payment) + '</td><td colspan="2" style="border-top:1px solid #ddd;"><b>Service :</b> ' + esc(d.service) + '</td></tr>' +
+      '<tr><td style="border-top:1px solid #aaa;border-right:1px solid #aaa;"><b>ค่าบริการครั้งเดียว :</b></td><td style="border-top:1px solid #aaa;border-right:1px solid #aaa;">' + _es2(d.inv.sale) + ' บาท</td><td style="border-top:1px solid #aaa;border-right:1px solid #aaa;"><b>มูลค่าโครงการ :</b></td><td style="border-top:1px solid #aaa;border-right:1px solid #aaa;">' + _es2(d.pvEx) + ' (ไม่รวม VAT)</td><td style="border-top:1px solid #aaa;border-right:1px solid #aaa;"><b>ระยะสัญญา :</b></td><td style="border-top:1px solid #aaa;">' + d.term + ' เดือน</td></tr>' +
+      '<tr><td style="border-top:1px solid #ddd;border-right:1px solid #aaa;"><b>ค่าบริการรายเดือน :</b></td><td style="border-top:1px solid #ddd;border-right:1px solid #aaa;">' + _es2(d.mrcMonth) + ' บาท/เดือน</td><td style="border-top:1px solid #ddd;border-right:1px solid #aaa;">:</td><td style="border-top:1px solid #ddd;border-right:1px solid #aaa;">' + _es2(d.pvVat) + ' (รวม VAT)</td><td style="border-top:1px solid #ddd;border-right:1px solid #aaa;"></td><td style="border-top:1px solid #ddd;"></td></tr>' +
       '</table>' +
       (logo ? '<img src="' + logo + '" style="position:absolute;top:0;left:0;width:60px;z-index:1;">' : '') +
       '</div>' +
