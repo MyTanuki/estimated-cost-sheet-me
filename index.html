@@ -908,6 +908,16 @@
           <input class="form-input" type="text" id="contractEndDate" value="31/05/2029" readonly
                  style="background:var(--bg-secondary); color:var(--text-secondary);">
         </div>
+        <div class="form-group" style="flex:1; min-width:100px;">
+          <label class="form-label">ระยะเวลาติดตั้ง (เดือน)</label>
+          <input class="form-input" type="number" id="installationMonths" value="1" min="0" max="120"
+                 onchange="updateOprTotal()">
+        </div>
+        <div class="form-group" style="flex:1; min-width:100px;">
+          <label class="form-label">ระยะปลอดดอกเบี้ย (เดือน)</label>
+          <input class="form-input" type="number" id="creditTermsMonths" value="0" min="0" max="120"
+                 onchange="updateOprTotal()">
+        </div>
       </div>
     </div>
 
@@ -1493,14 +1503,6 @@
               </div>
             </div>
 
-            <!-- Credit terms (was Free period) — default 0 -->
-            <div>
-              <div style="font-size:11px; color:var(--info); font-weight:500;">Credit terms (months)</div>
-              <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
-                <input type="range" min="0" max="12" step="1" value="0" id="free-period" style="flex:1; accent-color:var(--info);">
-                <span style="font-size:13px; font-weight:500; color:var(--info-dark); min-width:40px; text-align:right;" id="free-period-val">0 mo</span>
-              </div>
-            </div>
 
           </div>
         </div>
@@ -2538,8 +2540,16 @@
     const opr5 = parseNum(document.getElementById('opr5-val')?.value);
     const opr12 = parseNum(document.getElementById('opr12-val')?.value);
     const spare = parseNum(document.getElementById('opr6-val')?.value);
-    const pct7raw = parseFloat(document.getElementById('opr7-slider')?.value);
-    const pct7 = isNaN(pct7raw) ? 1 : pct7raw; // อนุญาต 0% (เดิม `|| 1` ทำให้ตั้ง 0 ไม่ได้)
+    // OPR-100007: ค่าดอกเบี้ย = (ระยะเวลาติดตั้ง - ระยะปลอดดอกเบี้ย) × 1%
+    const installMonths = parseFloat(document.getElementById('installationMonths')?.value) || 0;
+    const creditMonths = parseFloat(document.getElementById('creditTermsMonths')?.value) || 0;
+    const pct7 = Math.max(0, (installMonths - creditMonths) * 1); // เดือนที่จ่ายดอกเบี้ย × 1%/เดือน
+
+    // Update OPR-100007 display (ค่าดอกเบี้ย)
+    const opr7Pct = document.getElementById('opr7-pct');
+    const opr7Amt = document.getElementById('opr7-amount');
+    if (opr7Pct) opr7Pct.textContent = pct7.toFixed(1) + '%';
+    if (opr7Amt) opr7Amt.textContent = '฿' + Math.round(base * pct7 / 100).toLocaleString();
 
     // Bid Bond: only if checked in Tab 2 + month × 1%
     const bidChecked = document.getElementById('chkBidBond')?.checked || false;
