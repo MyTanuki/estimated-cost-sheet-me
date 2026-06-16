@@ -885,7 +885,7 @@
       </div>
 
       <!-- ข้อ 2: สัญญา (Contract) — collapsible -->
-      <div class="section" style="margin-bottom:10px;">
+      <div class="section" style="margin-top:20px; margin-bottom:6px;">
         <button onclick="toggleSection('contractDetail','contractChevron')"
           style="display:flex; align-items:center; gap:8px; width:100%; background:none; border:none;
                  padding:0; cursor:pointer; margin-bottom:0;">
@@ -4480,7 +4480,7 @@
     const parts = [];
     if (term) parts.push(term + ' mo');
     if (installMonths > 0) parts.push('Install ' + installMonths + ' mo');
-    if (creditMonths > 0) parts.push('Free ' + creditMonths + ' mo');
+    if (creditMonths > 0) parts.push('Credit ' + creditMonths + ' mo');
     el.textContent = parts.join(' · ');
     el.style.display = parts.length ? '' : 'none';
   }
