@@ -884,39 +884,55 @@
         <div id="serviceLinesContainer" style="border-top:1px solid var(--border);"></div>
       </div>
 
-      <!-- Contract Term — master field -->
-      <div style="display:flex; flex-wrap:nowrap; align-items:flex-end; gap:10px; margin-top:10px;">
-        <div class="form-group" style="flex:2; min-width:160px;">
-          <label class="form-label">
-            ระยะสัญญา (Contract Term) <span class="required">*</span>
-            <span style="font-size:9px; color:var(--primary); margin-left:4px; font-weight:400;">กำหนดที่นี่เพียงที่เดียว — ระบบจะใช้ทุก Tab</span>
-          </label>
-          <select class="form-select" id="globalContractTerm" onchange="onContractTermChange(this.value)">
-            <option value="12">12 เดือน (1 ปี)</option>
-            <option value="24">24 เดือน (2 ปี)</option>
-            <option value="36" selected>36 เดือน (3 ปี)</option>
-            <option value="48">48 เดือน (4 ปี)</option>
-            <option value="60">60 เดือน (5 ปี)</option>
-          </select>
-        </div>
-        <div class="form-group" style="flex:1.5; min-width:130px;">
-          <label class="form-label">วันเริ่มสัญญา</label>
-          <input class="form-input" type="date" id="contractStartDate" value="2026-06-01">
-        </div>
-        <div class="form-group" style="flex:1.5; min-width:130px;">
-          <label class="form-label">วันสิ้นสุดสัญญา</label>
-          <input class="form-input" type="text" id="contractEndDate" value="31/05/2029" readonly
-                 style="background:var(--bg-secondary); color:var(--text-secondary);">
-        </div>
-        <div class="form-group" style="flex:1; min-width:100px;">
-          <label class="form-label">ระยะเวลาติดตั้ง (เดือน)</label>
-          <input class="form-input" type="number" id="installationMonths" value="1" min="0" max="120"
-                 onchange="updateOprTotal()">
-        </div>
-        <div class="form-group" style="flex:1; min-width:100px;">
-          <label class="form-label">ระยะปลอดดอกเบี้ย (เดือน)</label>
-          <input class="form-input" type="number" id="creditTermsMonths" value="0" min="0" max="120"
-                 onchange="updateOprTotal()">
+      <!-- ข้อ 2: สัญญา (Contract) — collapsible -->
+      <div class="section" style="margin-bottom:10px;">
+        <button onclick="toggleSection('contractDetail','contractChevron')"
+          style="display:flex; align-items:center; gap:8px; width:100%; background:none; border:none;
+                 padding:0; cursor:pointer; margin-bottom:0;">
+          <div style="width:4px; height:16px; border-radius:2px; background:var(--info); flex-shrink:0;"></div>
+          <span style="font-size:14px; font-weight:500;">สัญญา</span>
+          <span id="contractBadge" style="display:none; font-size:11px; color:var(--info-dark); margin-left:8px; padding:2px 8px; background:var(--info-light); border-radius:999px;"></span>
+          <i class="ti ti-chevron-down" id="contractChevron" style="font-size:14px; color:var(--text-secondary); transition:transform 0.2s; margin-left:auto;"></i>
+        </button>
+        <div id="contractDetail" style="display:none; margin-top:10px;">
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <div class="form-group">
+              <label class="form-label">
+                ระยะสัญญา (Contract Term) <span class="required">*</span>
+                <span style="font-size:9px; color:var(--primary); margin-left:4px; font-weight:400;">กำหนดที่นี่เพียงที่เดียว — ระบบจะใช้ทุก Tab</span>
+              </label>
+              <select class="form-select" id="globalContractTerm" onchange="onContractTermChange(this.value)">
+                <option value="12">12 เดือน (1 ปี)</option>
+                <option value="24">24 เดือน (2 ปี)</option>
+                <option value="36" selected>36 เดือน (3 ปี)</option>
+                <option value="48">48 เดือน (4 ปี)</option>
+                <option value="60">60 เดือน (5 ปี)</option>
+              </select>
+            </div>
+            <div style="display:flex; gap:12px;">
+              <div class="form-group" style="flex:1.5;">
+                <label class="form-label">วันเริ่มสัญญา</label>
+                <input class="form-input" type="date" id="contractStartDate" value="2026-06-01">
+              </div>
+              <div class="form-group" style="flex:1.5;">
+                <label class="form-label">วันสิ้นสุดสัญญา</label>
+                <input class="form-input" type="text" id="contractEndDate" value="31/05/2029" readonly
+                       style="background:var(--bg-secondary); color:var(--text-secondary);">
+              </div>
+            </div>
+            <div style="display:flex; gap:12px;">
+              <div class="form-group" style="flex:1;">
+                <label class="form-label">ระยะเวลาติดตั้ง (เดือน)</label>
+                <input class="form-input" type="number" id="installationMonths" value="1" min="0" max="120"
+                       onchange="updateOprTotal()">
+              </div>
+              <div class="form-group" style="flex:1;">
+                <label class="form-label">ระยะปลอดดอกเบี้ย (เดือน)</label>
+                <input class="form-input" type="number" id="creditTermsMonths" value="0" min="0" max="120"
+                       onchange="updateOprTotal()">
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -2634,6 +2650,7 @@
     window.__oprTotal = oprTotalNum;
     if (typeof recalcSummary === 'function') recalcSummary();
     updateReqBadge();
+    updateContractBadge();
   }
 
   // ===== NPV =====
@@ -4453,6 +4470,19 @@
     const count = listEl.querySelectorAll('[id^="other-"]').length;
     el.textContent = count + ' รายการ';
     el.style.display = count ? '' : 'none';
+  }
+  function updateContractBadge() {
+    const el = document.getElementById('contractBadge');
+    if (!el) return;
+    const term = document.getElementById('globalContractTerm')?.value || '';
+    const installMonths = parseFloat(document.getElementById('installationMonths')?.value) || 0;
+    const creditMonths = parseFloat(document.getElementById('creditTermsMonths')?.value) || 0;
+    const parts = [];
+    if (term) parts.push(term + ' mo');
+    if (installMonths > 0) parts.push('Install ' + installMonths + ' mo');
+    if (creditMonths > 0) parts.push('Free ' + creditMonths + ' mo');
+    el.textContent = parts.join(' · ');
+    el.style.display = parts.length ? '' : 'none';
   }
 
   // ===== Overhead % (Tab 2) — drives OPR-100013 =====
@@ -6619,13 +6649,16 @@ window.onload = function() {
     // 5. คำนวณใหม่ทั้งระบบ (NPV + Summary + OPR) + re-render ตาราง MRC ให้ TOTAL COST/NPV SALE ตรงเทอมใหม่
     if (typeof recalcAll === 'function') recalcAll();
     if (typeof mrcManager !== 'undefined' && mrcManager.render) mrcManager.render();
+    updateContractBadge();
   }
 
-  // Sync end date when start date changes
+  // Sync end date when start date changes, or update badge when contract fields change
   document.addEventListener('change', function(e) {
     if (e.target.id === 'contractStartDate') {
       const termEl = document.getElementById('globalContractTerm');
       if (termEl) onContractTermChange(termEl.value);
+    } else if (e.target.id === 'installationMonths' || e.target.id === 'creditTermsMonths') {
+      updateContractBadge();
     }
   });
 
