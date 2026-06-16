@@ -1727,6 +1727,7 @@
         <div class="section-title">Estimated Cost Sheet (PDF)</div>
         <div class="section-meta">
           <button class="btn btn-sm btn-primary" onclick="printEstSheet()" style="gap:4px;"><i class="ti ti-file-type-pdf"></i> สร้าง/พิมพ์ใบปัจจุบัน</button>
+          <button class="btn btn-sm" onclick="openEshSettings()" title="ตั้งค่าขนาดตาราง Page Header" style="gap:4px;"><i class="ti ti-settings"></i></button>
         </div>
       </div>
       <div class="data-table" style="margin-top:8px;">
@@ -2065,6 +2066,36 @@
           <i class="ti ti-file-off" style="font-size:32px; color:var(--text-tertiary); display:block; margin-bottom:8px;"></i>
           ยังไม่มีใบเสนอราคา — กด "Convert EST → Quotation" เพื่อสร้างจาก Cost Sheet ที่อนุมัติแล้ว
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page Header settings Modal — ปรับขนาดคอลัมน์ (%) + โลโก้ พร้อม preview real-time -->
+  <div id="eshSettingsModal" class="modal-overlay" style="display:none;">
+    <div class="modal-box" style="max-width:720px;">
+      <div class="modal-header">
+        <span><i class="ti ti-settings"></i> ตั้งค่า Page Header</span>
+        <button class="modal-close" onclick="closeEshSettings()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="font-size:11px; color:var(--text-secondary); margin-bottom:8px;">ปรับความกว้างคอลัมน์ (%) และความกว้างโลโก้ (px) — ตัวอย่างด้านล่างอัปเดตทันที</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;">
+          <label style="font-size:11px;">C1 %<br><input id="eshC0" type="number" min="1" max="100" step="1" oninput="eshPreviewRender()" style="width:54px;"></label>
+          <label style="font-size:11px;">C2 %<br><input id="eshC1" type="number" min="1" max="100" step="1" oninput="eshPreviewRender()" style="width:54px;"></label>
+          <label style="font-size:11px;">C3 %<br><input id="eshC2" type="number" min="1" max="100" step="1" oninput="eshPreviewRender()" style="width:54px;"></label>
+          <label style="font-size:11px;">C4 %<br><input id="eshC3" type="number" min="1" max="100" step="1" oninput="eshPreviewRender()" style="width:54px;"></label>
+          <label style="font-size:11px;">C5 %<br><input id="eshC4" type="number" min="1" max="100" step="1" oninput="eshPreviewRender()" style="width:54px;"></label>
+          <label style="font-size:11px;">C6 %<br><input id="eshC5" type="number" min="1" max="100" step="1" oninput="eshPreviewRender()" style="width:54px;"></label>
+          <label style="font-size:11px;">โลโก้ px<br><input id="eshLogoW" type="number" min="0" max="200" step="2" oninput="eshPreviewRender()" style="width:60px;"></label>
+          <span id="eshSumLabel" style="font-size:11px; margin-left:auto;"></span>
+        </div>
+        <div style="margin-top:12px; font-size:11px; color:var(--text-secondary);">ตัวอย่าง (Page Header จากใบปัจจุบัน)</div>
+        <iframe id="eshPreviewFrame" style="width:100%; height:170px; border:1px solid var(--border); border-radius:6px; margin-top:4px; background:#fff;"></iframe>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-sm" onclick="resetEshSettings()">คืนค่าเริ่มต้น</button>
+        <button class="btn btn-sm" onclick="closeEshSettings()">ยกเลิก</button>
+        <button class="btn btn-sm btn-primary" onclick="saveEshSettings()"><i class="ti ti-check"></i> บันทึก</button>
       </div>
     </div>
   </div>
@@ -5116,6 +5147,40 @@ window.onload = function() {
     };
   }
 
+  // Page Header layout settings — ปรับผ่านปุ่ม gear ข้างปุ่มพิมพ์ (6 ความกว้างคอลัมน์ % + ความกว้างโลโก้ px), เก็บใน localStorage ใช้ทั้ง preview และพิมพ์จริง
+  const ESH_HDR_DEFAULT = { cols: [18, 20, 13, 17, 14, 18], logoW: 60 };
+  function getEshHdr() {
+    try {
+      const s = JSON.parse(localStorage.getItem('esh_hdr') || 'null');
+      if (s && Array.isArray(s.cols) && s.cols.length === 6 && s.cols.every(n => +n > 0) && +s.logoW > 0)
+        return { cols: s.cols.map(Number), logoW: +s.logoW };
+    } catch (e) {}
+    return { cols: ESH_HDR_DEFAULT.cols.slice(), logoW: ESH_HDR_DEFAULT.logoW };
+  }
+  // pure: สร้าง Page Header (โลโก้ + ตารางข้อมูล) — แชร์ระหว่าง preview กับเอกสารพิมพ์จริง เพื่อให้ตรงกันเป๊ะ
+  function buildPageHeaderHtml(d, hdr) {
+    hdr = hdr || getEshHdr();
+    const esc = (typeof escapeHtml === 'function') ? escapeHtml : (s => String(s == null ? '' : s));
+    const logo = (typeof LOGO_DATA_URL !== 'undefined') ? LOGO_DATA_URL : '';
+    const dd = d.date instanceof Date ? d.date : new Date();
+    const dateStr = dd.getDate() + '-' + (dd.getMonth() + 1) + '-' + dd.getFullYear();
+    const lw = hdr.logoW;
+    const cg = '<colgroup>' + hdr.cols.map(w => '<col style="width:' + w + '%">').join('') + '</colgroup>';
+    return '<div style="position:relative;">' +
+      '<div class="hd">Estimated Cost Sheet (by Presale)</div>' +
+      '<table class="kvn" style="margin-top:4px;margin-left:' + lw + 'px;width:calc(100% - ' + lw + 'px);table-layout:fixed;">' +
+      cg +
+      '<tr><td><b>Customer :</b></td><td colspan="3" style="border-right:1px solid #aaa;">' + esc(d.cust) + '</td><td><b>Estimated Cost No :</b></td><td>' + esc(d.estNo) + '</td></tr>' +
+      '<tr><td style="border-top:1px solid #ddd;"><b>Project :</b></td><td colspan="3" style="border-top:1px solid #ddd;border-right:1px solid #aaa;">' + esc(d.project) + '</td><td style="border-top:1px solid #ddd;"><b>Estimated Date :</b></td><td style="border-top:1px solid #ddd;">' + dateStr + '</td></tr>' +
+      '<tr><td style="border-top:1px solid #ddd;"><b>Sale :</b></td><td style="border-top:1px solid #ddd;border-right:1px solid #ddd;">' + esc(d.sale) + '</td><td style="border-top:1px solid #ddd;"><b>Group :</b></td><td style="border-top:1px solid #ddd;border-right:1px solid #aaa;">' + esc(d.group) + '</td><td colspan="2" style="border-top:1px solid #ddd;"><b>Pre-Sales :</b> ' + esc(d.preSales) + '</td></tr>' +
+      '<tr><td style="border-top:1px solid #ddd;"><b>Type :</b></td><td style="border-top:1px solid #ddd;border-right:1px solid #ddd;">' + esc(d.projectType) + '</td><td style="border-top:1px solid #ddd;"><b>Payment :</b></td><td style="border-top:1px solid #ddd;border-right:1px solid #aaa;">' + esc(d.payment) + '</td><td colspan="2" style="border-top:1px solid #ddd;"><b>Service :</b> ' + esc(d.service) + '</td></tr>' +
+      '<tr><td style="border-top:1px solid #aaa;border-right:1px solid #aaa;"><b>ค่าบริการครั้งเดียว :</b></td><td style="border-top:1px solid #aaa;border-right:1px solid #aaa;">' + _es2(d.inv.sale) + ' บาท</td><td style="border-top:1px solid #aaa;border-right:1px solid #aaa;"><b>มูลค่าโครงการ :</b></td><td style="border-top:1px solid #aaa;border-right:1px solid #aaa;">' + _es2(d.pvEx) + ' (ไม่รวม VAT)</td><td style="border-top:1px solid #aaa;border-right:1px solid #aaa;"><b>ระยะสัญญา :</b></td><td style="border-top:1px solid #aaa;">' + d.term + ' เดือน</td></tr>' +
+      '<tr><td style="border-top:1px solid #ddd;border-right:1px solid #aaa;"><b>ค่าบริการรายเดือน :</b></td><td style="border-top:1px solid #ddd;border-right:1px solid #aaa;">' + _es2(d.mrcMonth) + ' บาท/เดือน</td><td style="border-top:1px solid #ddd;border-right:1px solid #aaa;">:</td><td style="border-top:1px solid #ddd;border-right:1px solid #aaa;">' + _es2(d.pvVat) + ' (รวม VAT)</td><td style="border-top:1px solid #ddd;border-right:1px solid #aaa;"></td><td style="border-top:1px solid #ddd;"></td></tr>' +
+      '</table>' +
+      (logo ? '<img src="' + logo + '" style="position:absolute;top:0;left:0;width:' + lw + 'px;z-index:1;">' : '') +
+      '</div>';
+  }
+
   // pure: สร้าง HTML เอกสาร Estimated Cost Sheet (by Presale) ตามรูปแบบที่กำหนด
   function buildEstSheetHtml(d) {
     const esc = (typeof escapeHtml === 'function') ? escapeHtml : (s => String(s == null ? '' : s));
@@ -5124,8 +5189,6 @@ window.onload = function() {
     const _cg11 = '<colgroup><col style="width:4%"><col style="width:8%"><col style="width:10%"><col style="width:26%"><col style="width:5%"><col style="width:8%"><col style="width:9%"><col style="width:7%"><col style="width:8%"><col style="width:9%"><col style="width:6%"></colgroup>';
     // Operation table กว้าง 70% + คอลัมน์ Total Cost (สุดท้าย) = 12.9% ของตาราง = 9% ของหน้า → ขอบ 61-70% ตรงกับ Total Cost ของ Investment (col7 ใน _cg11)
     const _cg5 = '<colgroup><col style="width:5.7%"><col style="width:17.1%"><col style="width:52.9%"><col style="width:11.4%"><col style="width:12.9%"></colgroup>';
-    const dd = d.date instanceof Date ? d.date : new Date();
-    const dateStr = dd.getDate() + '-' + (dd.getMonth() + 1) + '-' + dd.getFullYear();
     const oprLabel = {
       1: 'ค่าติดตั้งและค่าใช้จ่ายบริหารงาน (Install&Mat, Project Mgmt.)', 2: 'ค่าขนส่งและเก็บรักษา (Logistics & Warehouse)',
       3: 'ค่าฝึกอบรม (เอกสาร และ อื่นๆ)', 4: 'Sale and Presale Management & Acceptance (ถ้ามี)',
@@ -5178,7 +5241,6 @@ window.onload = function() {
     const _sdN = Math.max(6, _sdItems.length);
     for (let _i = 0; _i < _sdN; _i++) svcLines += '<div class="sd">' + (_sdItems[_i] ? esc(_sdItems[_i].text) : '&nbsp;') + '</div>';
     const ck = b => b ? '☑' : '☐';
-    const logo = (typeof LOGO_DATA_URL !== 'undefined') ? LOGO_DATA_URL : '';
     // สรุปการเงินแบบละเอียด (ตามตัวอย่าง) — % ของ Revenue
     const _rev = d.projectValue || d.pvEx || 0;
     const _pct = v => _rev > 0 ? (v / _rev * 100).toFixed(1) + '%' : '0.0%';
@@ -5211,19 +5273,7 @@ window.onload = function() {
       '.opt th:nth-child(3),.opt td:nth-child(3){border-right:none;} .opt th:nth-child(4),.opt td:nth-child(4){border-left:none;border-right:none;} .opt th:nth-child(5),.opt td:nth-child(5){border-left:1px solid #999;}' +
       '</style></head><body>' +
       '<table class="doc"><thead><tr><td>' +
-      '<div style="position:relative;">' +
-      '<div class="hd">Estimated Cost Sheet (by Presale)</div>' +
-      '<table class="kvn" style="margin-top:4px;margin-left:60px;width:calc(100% - 60px);table-layout:fixed;">' +
-      '<colgroup><col style="width:18%"><col style="width:20%"><col style="width:13%"><col style="width:17%"><col style="width:14%"><col style="width:18%"></colgroup>' +
-      '<tr><td><b>Customer :</b></td><td colspan="3" style="border-right:1px solid #aaa;">' + esc(d.cust) + '</td><td><b>Estimated Cost No :</b></td><td>' + esc(d.estNo) + '</td></tr>' +
-      '<tr><td style="border-top:1px solid #ddd;"><b>Project :</b></td><td colspan="3" style="border-top:1px solid #ddd;border-right:1px solid #aaa;">' + esc(d.project) + '</td><td style="border-top:1px solid #ddd;"><b>Estimated Date :</b></td><td style="border-top:1px solid #ddd;">' + dateStr + '</td></tr>' +
-      '<tr><td style="border-top:1px solid #ddd;"><b>Sale :</b></td><td style="border-top:1px solid #ddd;border-right:1px solid #ddd;">' + esc(d.sale) + '</td><td style="border-top:1px solid #ddd;"><b>Group :</b></td><td style="border-top:1px solid #ddd;border-right:1px solid #aaa;">' + esc(d.group) + '</td><td colspan="2" style="border-top:1px solid #ddd;"><b>Pre-Sales :</b> ' + esc(d.preSales) + '</td></tr>' +
-      '<tr><td style="border-top:1px solid #ddd;"><b>Type :</b></td><td style="border-top:1px solid #ddd;border-right:1px solid #ddd;">' + esc(d.projectType) + '</td><td style="border-top:1px solid #ddd;"><b>Payment :</b></td><td style="border-top:1px solid #ddd;border-right:1px solid #aaa;">' + esc(d.payment) + '</td><td colspan="2" style="border-top:1px solid #ddd;"><b>Service :</b> ' + esc(d.service) + '</td></tr>' +
-      '<tr><td style="border-top:1px solid #aaa;border-right:1px solid #aaa;"><b>ค่าบริการครั้งเดียว :</b></td><td style="border-top:1px solid #aaa;border-right:1px solid #aaa;">' + _es2(d.inv.sale) + ' บาท</td><td style="border-top:1px solid #aaa;border-right:1px solid #aaa;"><b>มูลค่าโครงการ :</b></td><td style="border-top:1px solid #aaa;border-right:1px solid #aaa;">' + _es2(d.pvEx) + ' (ไม่รวม VAT)</td><td style="border-top:1px solid #aaa;border-right:1px solid #aaa;"><b>ระยะสัญญา :</b></td><td style="border-top:1px solid #aaa;">' + d.term + ' เดือน</td></tr>' +
-      '<tr><td style="border-top:1px solid #ddd;border-right:1px solid #aaa;"><b>ค่าบริการรายเดือน :</b></td><td style="border-top:1px solid #ddd;border-right:1px solid #aaa;">' + _es2(d.mrcMonth) + ' บาท/เดือน</td><td style="border-top:1px solid #ddd;border-right:1px solid #aaa;">:</td><td style="border-top:1px solid #ddd;border-right:1px solid #aaa;">' + _es2(d.pvVat) + ' (รวม VAT)</td><td style="border-top:1px solid #ddd;border-right:1px solid #aaa;"></td><td style="border-top:1px solid #ddd;"></td></tr>' +
-      '</table>' +
-      (logo ? '<img src="' + logo + '" style="position:absolute;top:0;left:0;width:60px;z-index:1;">' : '') +
-      '</div>' +
+      buildPageHeaderHtml(d) +
       '</td></tr></thead><tbody><tr><td>' +
       // Service details + checkboxes
       '<div class="sec">Service Details</div>' +
@@ -5273,6 +5323,48 @@ window.onload = function() {
   window.printEstSheet = printEstSheet;
   window.buildEstSheetHtml = buildEstSheetHtml;
   window.estSheetData = estSheetData;
+
+  // ===== Page Header settings modal =====
+  // CSS ที่ Page Header ต้องใช้ (สะท้อนกฎเดียวกับเอกสารพิมพ์จริงใน buildEstSheetHtml) — ใช้ใน preview iframe
+  const ESH_PREVIEW_CSS = '*{box-sizing:border-box;}body{font-family:"Sarabun","Tahoma",sans-serif;font-size:8.5px;color:#111;margin:8px;line-height:1.1;}' +
+    'table{width:100%;border-collapse:collapse;}td{border:1px solid #999;padding:0.5px 4px;line-height:1.15;}b{font-weight:700;}' +
+    '.hd{background:#e8332e;color:#fff;text-align:center;font-size:15px;font-weight:700;padding:5px;letter-spacing:.5px;}' +
+    '.kvn{border:1px solid #333;border-collapse:collapse;}.kvn td{border:none;padding:2px 6px;}';
+  function eshReadInputs() {
+    const cols = [0,1,2,3,4,5].map(i => +document.getElementById('eshC' + i).value || 0);
+    return { cols, logoW: +document.getElementById('eshLogoW').value || 0 };
+  }
+  function eshFillInputs(hdr) {
+    hdr.cols.forEach((w, i) => { document.getElementById('eshC' + i).value = w; });
+    document.getElementById('eshLogoW').value = hdr.logoW;
+  }
+  function eshPreviewRender() {
+    const hdr = eshReadInputs();
+    const sum = hdr.cols.reduce((a, b) => a + b, 0);
+    const lbl = document.getElementById('eshSumLabel');
+    if (lbl) { lbl.textContent = 'รวม ' + sum + '%'; lbl.style.color = (sum === 100) ? 'var(--success)' : 'var(--danger)'; }
+    const frame = document.getElementById('eshPreviewFrame');
+    if (frame) frame.srcdoc = '<style>' + ESH_PREVIEW_CSS + '</style>' + buildPageHeaderHtml(estSheetData(), hdr);
+  }
+  function openEshSettings() {
+    eshFillInputs(getEshHdr());
+    document.getElementById('eshSettingsModal').style.display = 'flex';
+    eshPreviewRender();
+  }
+  function closeEshSettings() { document.getElementById('eshSettingsModal').style.display = 'none'; }
+  function resetEshSettings() { eshFillInputs({ cols: ESH_HDR_DEFAULT.cols.slice(), logoW: ESH_HDR_DEFAULT.logoW }); eshPreviewRender(); }
+  function saveEshSettings() {
+    const hdr = eshReadInputs();
+    if (hdr.cols.some(w => w <= 0) || hdr.logoW <= 0) { if (typeof dbNotify === 'function') dbNotify('ค่าต้องมากกว่า 0', true); return; }
+    localStorage.setItem('esh_hdr', JSON.stringify(hdr));
+    closeEshSettings();
+    if (typeof dbNotify === 'function') dbNotify('บันทึกขนาด Page Header แล้ว');
+  }
+  window.openEshSettings = openEshSettings;
+  window.closeEshSettings = closeEshSettings;
+  window.resetEshSettings = resetEshSettings;
+  window.saveEshSettings = saveEshSettings;
+  window.eshPreviewRender = eshPreviewRender;
 
   // list ของ Estimated Cost Sheet (ของตัวเอง) + ปุ่มรายแถว
   async function renderEstSheetList() {
