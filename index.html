@@ -243,7 +243,21 @@
     font-size: 12px;
     align-self: center;
   }
-  .install-table .data-row select.row-input { width: 100%; }
+  .install-table .data-row .row-input {
+    border: 1px solid transparent !important; background: transparent !important;
+    border-radius: var(--radius-sm); padding: 1px 3px !important; font-size: 12px;
+    height: 18px; line-height: 1.2;
+    transition: all 0.2s;
+  }
+  .install-table .data-row .row-input:hover, .install-table .data-row .row-input:focus {
+    background: white !important; border-color: var(--border) !important;
+  }
+  .install-table .data-row .row-input:focus {
+    border-color: var(--primary) !important; box-shadow: 0 0 0 2px var(--primary-light) !important;
+  }
+  .install-table .data-row select.row-input { width: 100%; padding-right: 18px !important; height: auto; }
+  .install-table .data-row input.row-input { width: 100%; }
+  .install-table .data-row .text-input { height: 16px; margin: 1px 0; }
 
   .opr-row {
     display: grid; grid-template-columns: 85px 1fr 90px 160px 130px 70px;
