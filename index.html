@@ -887,6 +887,7 @@
                padding:0; cursor:pointer; margin-bottom:0;">
         <div style="width:4px; height:16px; border-radius:2px; background:var(--warning); flex-shrink:0;"></div>
         <span style="font-size:14px; font-weight:500;">ความต้องการพิเศษ</span>
+        <span id="reqBadge" style="display:none; font-size:11px; color:var(--warning-dark); margin-left:8px; padding:2px 8px; background:var(--warning-light); border-radius:999px;"></span>
         <i class="ti ti-chevron-down" id="reqChevron" style="font-size:14px; color:var(--text-secondary); transition:transform 0.2s; margin-left:auto;"></i>
       </button>
       <div id="reqDetail" style="display:none; margin-top:10px;">
@@ -2590,6 +2591,7 @@
     setKpi('opr-total-pct', base > 0 ? (oprTotalNum / base * 100).toFixed(1) + '% of investment base' : '—');
     window.__oprTotal = oprTotalNum;
     if (typeof recalcSummary === 'function') recalcSummary();
+    updateReqBadge();
   }
 
   // ===== NPV =====
@@ -4387,6 +4389,19 @@
   function setOhLabel(txt) {
     const el = document.getElementById('ohSelectedLabel');
     if (el) el.textContent = txt;
+  }
+  function updateReqBadge() {
+    const el = document.getElementById('reqBadge');
+    if (!el) return;
+    const parts = [];
+    if (document.getElementById('chkBidBond')?.checked) {
+      const m = parseFloat(document.getElementById('bidBondMonths')?.value) || 1;
+      parts.push('Bid Bond ×' + m + ' เดือน');
+    }
+    if (document.getElementById('chkPerfBond')?.checked) parts.push('Perf Bond');
+    if (document.getElementById('chkTelecomLicense')?.checked) parts.push('USO 2%');
+    el.textContent = parts.join(' · ');
+    el.style.display = parts.length ? '' : 'none';
   }
 
   // ===== Overhead % (Tab 2) — drives OPR-100013 =====
