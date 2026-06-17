@@ -169,14 +169,14 @@
   .field-hint.success { color: var(--success-dark); }
   .field-hint.warning { color: var(--warning-dark); }
 
-  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-  .kpi-card { background: var(--bg-secondary); border-radius: var(--radius-md); padding: 10px 12px; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .kpi-card { background: var(--bg-secondary); border-radius: var(--radius-md); padding: 8px 10px; }
   .kpi-card.accent-purple { border-left: 3px solid var(--primary); border-radius: 0 var(--radius-md) var(--radius-md) 0; background: white; border-top: 1px solid var(--border); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
   .kpi-card.accent-orange { border-left: 3px solid var(--warning); border-radius: 0 var(--radius-md) var(--radius-md) 0; background: white; border-top: 1px solid var(--border); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
   .kpi-card.accent-green { border-left: 3px solid var(--success); border-radius: 0 var(--radius-md) var(--radius-md) 0; background: white; border-top: 1px solid var(--border); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
   .kpi-card.accent-blue { border-left: 3px solid var(--info); border-radius: 0 var(--radius-md) var(--radius-md) 0; background: white; border-top: 1px solid var(--border); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
   .kpi-label { font-size: 11px; color: var(--text-secondary); }
-  .kpi-value { font-size: 18px; font-weight: 500; margin-top: 2px; }
+  .kpi-value { font-size: 16px; font-weight: 500; margin-top: 2px; }
   .kpi-sub { font-size: 10px; color: var(--text-tertiary); margin-top: 1px; }
 
   .data-table { border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; background: white; }
@@ -764,7 +764,7 @@
       </div>
     </div>
 
-    <div class="section" style="margin-bottom:16px;">
+    <div class="section" style="margin-bottom:0px;">
       <div class="section-header" style="margin-bottom:10px;">
         <div class="section-bar" style="background: var(--success);"></div>
         <div class="section-title">สรุปยอดโครงการ</div>
@@ -4443,9 +4443,9 @@
     const installMonths = parseFloat(document.getElementById('installationMonths')?.value) || 0;
     const creditMonths = parseFloat(document.getElementById('creditTermsMonths')?.value) || 0;
     const parts = [];
-    if (term) parts.push(term + ' mo');
-    if (installMonths > 0) parts.push('Install ' + installMonths + ' mo');
-    if (creditMonths > 0) parts.push('Credit ' + creditMonths + ' mo');
+    if (term) parts.push(term + ' เดือน');
+    if (installMonths > 0) parts.push('Install ' + installMonths + ' เดือน');
+    if (creditMonths > 0) parts.push('Credit ' + creditMonths + ' เดือน');
     el.textContent = parts.join(' · ');
     el.style.display = parts.length ? '' : 'none';
   }
