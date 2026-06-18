@@ -1186,11 +1186,6 @@
       </div>
     </div>
 
-    <div class="banner banner-primary" style="align-items:center;">
-      <i class="ti ti-info-circle"></i>
-      <div style="flex:1; font-size:11px;">Investment base: <b style="color:var(--primary);" id="opr-investment-base">฿668,000</b> · รายการ % คำนวณจากงบลงทุนอัตโนมัติ</div>
-    </div>
-
     <!-- Role lock notice -->
     <div id="roleLockNotice" class="banner banner-warning" style="padding:6px 12px; display:none;">
       <i class="ti ti-lock"></i>
@@ -2448,8 +2443,6 @@
     const _mrcSale = (typeof getMrcMonthly === 'function') ? (getMrcMonthly().sale || 0) : 0;
     const pvEx = baseSale + _mrcSale * _term;   // project value (ไม่รวม VAT) = inv.sale + mrc.sale × term
     const pvVat = pvEx * 1.07;              // project value (รวม VAT 7%)
-    const baseLabel = document.getElementById('opr-investment-base');
-    if (baseLabel) baseLabel.textContent = '฿' + Math.round(base).toLocaleString();
     // base-ref ต่อแถว (DOM order ของ .opr-base-ref: opr7, opr8, opr9, opr10, opr11, opr13)
     const _refBase = [base, pvVat, pvVat, pvEx, pvEx, pvEx];
     document.querySelectorAll('.opr-base-ref').forEach((el, i) => {
