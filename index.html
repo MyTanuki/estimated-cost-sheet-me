@@ -671,7 +671,12 @@
       <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px;">
         <div class="form-group">
           <label class="form-label">Customer <span class="required">*</span></label>
-          <input class="form-input" type="text" id="custName" value="Central Food Retail Co., Ltd.">
+          <input class="form-input" type="text" id="custName" value="Central Food Retail Co., Ltd."
+                 list="crmCustomerOptions" autocomplete="off" oninput="crmOnCustomerInput(this.value)">
+          <datalist id="crmCustomerOptions"></datalist>
+          <input type="hidden" id="organizationId">
+          <input type="hidden" id="dealId">
+          <div class="field-hint" id="crmCustomerHint"></div>
         </div>
         <div class="form-group">
           <label class="form-label">Project <span class="required">*</span></label>
@@ -2660,11 +2665,7 @@
     }
 
     // Phase 2.5 — best-effort: เขียนลง est_document ใน DB ด้วย (ไม่กระทบ flow เดิมถ้าไม่ได้ login)
-    if (typeof DbWrite !== 'undefined' && AUTH_CONFIG.enabled && Auth.isAuthed()) {
-      DbWrite.saveEstDocument()
-        .then(r => { if (r && r.ok) dbNotify('บันทึกลงฐานข้อมูลแล้ว · ' + r.est_no); })
-        .catch(e => dbNotify('บันทึก DB ไม่สำเร็จ: ' + e.message, true));
-    }
+    saveRemoteDraft().catch(e => console.warn('[save] remote save failed: ' + e.message));
 
     // Visual feedback — make button gray (disabled look)
     isDirty = false;
@@ -2687,6 +2688,32 @@
     return applyState(saved);
   }
   window.loadAppState = loadAppState;
+
+  async function saveRemoteDraft(status) {
+    if (typeof CrmWrite !== 'undefined' && CRM_CONFIG.enabled) {
+      try {
+        const r = await CrmWrite.saveEstimateDraft(status || 'draft');
+        if (r && r.ok && typeof dbNotify === 'function') {
+          dbNotify('บันทึกลง Sales Compass แล้ว · ' + (r.estimate_no || r.estimate_id) + ' · ' + r.lines + ' lines');
+        }
+        return r;
+      } catch (e) {
+        console.warn('[crm] save failed, trying legacy path: ' + e.message);
+      }
+    }
+    if (typeof DbWrite !== 'undefined' && AUTH_CONFIG.enabled && Auth.isAuthed() && Auth.sameProject(DB_CONFIG)) {
+      try {
+        const r = await DbWrite.saveEstDocument(status);
+        if (r && r.ok && typeof dbNotify === 'function') dbNotify('บันทึกลงฐานข้อมูลเดิมแล้ว · ' + r.est_no);
+        return r;
+      } catch (e) {
+        if (typeof dbNotify === 'function') dbNotify('บันทึก DB ไม่สำเร็จ: ' + e.message, true);
+        throw e;
+      }
+    }
+    return { skipped: true };
+  }
+  window.saveRemoteDraft = saveRemoteDraft;
 
   // นำ state object (รูปแบบเดียวกับ buildDraftState) มาใส่ฟอร์ม — ใช้ทั้ง localStorage และ payload จาก DB
   function applyState(saved) {
@@ -5849,6 +5876,16 @@ window.onload = function() {
     anonKey: 'sb_publishable_naBaYwS4QgOrOAelKaehUg_m2oH3D-T' // publishable key — ออกแบบให้อยู่ฝั่ง client ได้ (RLS = อ่านอย่างเดียว)
   };
   window.DB_CONFIG = DB_CONFIG;
+
+  // CRM Sale Compass canonical source. Keep separate from DB_CONFIG until the
+  // legacy write path is replaced with estimates/estimate_lines.
+  const CRM_CONFIG = {
+    enabled: true,
+    url: 'https://lzuxhvpdruaiacfhaqqh.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx6dXhodnBkcnVhaWFjZmhhcXFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MTU4MjMsImV4cCI6MjA5MjQ5MTgyM30.f2eQ3u8amWUL6FlTQQS8hdZstBS6076PzkGlw8aLLYs',
+    maxRows: 1000
+  };
+  window.CRM_CONFIG = CRM_CONFIG;
   const MASTER_CACHE_KEY = 'est_master_cache_v1';
 
   // ============================================================
@@ -5864,6 +5901,43 @@ window.onload = function() {
 
   const Auth = {
     session: null,
+    baseConfig() {
+      return (typeof CRM_CONFIG !== 'undefined' && CRM_CONFIG.enabled && CRM_CONFIG.url && CRM_CONFIG.anonKey)
+        ? CRM_CONFIG
+        : DB_CONFIG;
+    },
+    sameProject(config) {
+      const base = this.baseConfig();
+      return !!(base && config && base.url && config.url &&
+        base.url.replace(/\/$/, '') === config.url.replace(/\/$/, ''));
+    },
+    _normalizeRole(profile) {
+      const raw = String((profile && (profile.role || profile.app_role || profile.estimate_role || profile.est_role || profile.approval_role)) || '').toLowerCase();
+      if (['presale', 'sale', 'clevel', 'ceo'].includes(raw)) return raw;
+      if (['c-level', 'c_level', 'coo', 'cpo', 'cos', 'director', 'management'].includes(raw)) return 'clevel';
+      if (['sales', 'seller', 'account_manager', 'account manager', 'head_of_sales', 'head of sales'].includes(raw)) return 'sale';
+      if (['sa', 'solution_architect', 'solution architect', 'presales', 'pre-sale', 'pre sale'].includes(raw)) return 'presale';
+      return 'presale';
+    },
+    _normalizeProfile(profile, authUser) {
+      const meta = (authUser && authUser.user_metadata) || {};
+      const id = (profile && profile.id) || (authUser && authUser.id) || null;
+      const email = (profile && profile.email) || (authUser && authUser.email) || '';
+      const fullName = (profile && (profile.full_name || profile.name || profile.display_name)) ||
+        meta.full_name || meta.name || meta.display_name || email || 'Sales Compass User';
+      return {
+        user_id: id,
+        profile_id: id,
+        auth_uid: id,
+        email,
+        full_name: fullName,
+        role: this._normalizeRole(profile || meta),
+        c_level_role: (profile && (profile.c_level_role || profile.clevel_role)) || null,
+        title: (profile && (profile.title || profile.job_title || profile.position)) || null,
+        sale_team: (profile && (profile.sale_team || profile.sales_team || profile.team_name || profile.team)) || null,
+        raw_profile: profile || null
+      };
+    },
     _load() {
       try { this.session = JSON.parse(localStorage.getItem(AUTH_SESSION_KEY) || 'null'); }
       catch (e) { this.session = null; }
@@ -5879,9 +5953,10 @@ window.onload = function() {
     },
     isAuthed() { return !!(this.session && this.session.access_token); },
     async _authFetch(path, body) {
-      const res = await fetch(DB_CONFIG.url + '/auth/v1/' + path, {
+      const cfg = this.baseConfig();
+      const res = await fetch(cfg.url + '/auth/v1/' + path, {
         method: 'POST',
-        headers: { apikey: DB_CONFIG.anonKey, 'Content-Type': 'application/json' },
+        headers: { apikey: cfg.anonKey, 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
       const data = await res.json().catch(() => ({}));
@@ -5928,34 +6003,400 @@ window.onload = function() {
     // header สำหรับ write path (Phase 2.5): Bearer token + apikey
     async authHeaders() {
       const t = await this.getToken();
-      return t ? { apikey: DB_CONFIG.anonKey, Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' } : null;
+      const cfg = this.baseConfig();
+      return t ? { apikey: cfg.anonKey, Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' } : null;
     },
-    // ดึง row app_user ของผู้ใช้ปัจจุบัน (role/full_name/title) ผ่าน RLS (Bearer token)
+    // ดึง row profiles ของผู้ใช้ Sales Compass ปัจจุบัน (role/full_name/title) ผ่าน RLS (Bearer token)
     async loadAppUser() {
       const t = await this.getToken();
       if (!t) return null;
+      const cfg = this.baseConfig();
       let uid = this.session.user && this.session.user.id;
+      let authUser = this.session.user || null;
       if (!uid) {
         try {
-          const ur = await fetch(DB_CONFIG.url + '/auth/v1/user', { headers: { apikey: DB_CONFIG.anonKey, Authorization: 'Bearer ' + t } });
-          const u = await ur.json(); uid = u.id; this.session.user = u; this._save(this.session);
+          const ur = await fetch(cfg.url + '/auth/v1/user', { headers: { apikey: cfg.anonKey, Authorization: 'Bearer ' + t } });
+          const u = await ur.json(); uid = u.id; authUser = u; this.session.user = u; this._save(this.session);
         } catch (e) {}
       }
       if (!uid) return null;
       try {
-        const r = await fetch(DB_CONFIG.url + '/rest/v1/app_user?select=user_id,email,full_name,role,c_level_role,title,sale_team&auth_uid=eq.' + uid,
-          { headers: { apikey: DB_CONFIG.anonKey, Authorization: 'Bearer ' + t } });
+        const r = await fetch(cfg.url + '/rest/v1/profiles?select=*&id=eq.' + encodeURIComponent(uid) + '&limit=1',
+          { headers: { apikey: cfg.anonKey, Authorization: 'Bearer ' + t } });
         const rows = await r.json();
-        return Array.isArray(rows) && rows.length ? rows[0] : null;
-      } catch (e) { return null; }
+        return this._normalizeProfile(Array.isArray(rows) && rows.length ? rows[0] : null, authUser);
+      } catch (e) { return this._normalizeProfile(null, authUser); }
     },
     async signOut() {
+      const cfg = this.baseConfig();
       const t = this.session && this.session.access_token;
-      if (t) { try { await fetch(DB_CONFIG.url + '/auth/v1/logout', { method: 'POST', headers: { apikey: DB_CONFIG.anonKey, Authorization: 'Bearer ' + t } }); } catch (e) {} }
+      if (t) { try { await fetch(cfg.url + '/auth/v1/logout', { method: 'POST', headers: { apikey: cfg.anonKey, Authorization: 'Bearer ' + t } }); } catch (e) {} }
       this._clear();
     }
   };
   window.Auth = Auth;
+
+  const CrmApi = {
+    organizations: [],
+    _sameProject() {
+      return typeof Auth !== 'undefined' && Auth.sameProject(CRM_CONFIG);
+    },
+    async _headers(json) {
+      const h = { apikey: CRM_CONFIG.anonKey };
+      if (json) h['Content-Type'] = 'application/json';
+      if (this._sameProject() && typeof Auth !== 'undefined' && Auth.isAuthed()) {
+        const t = await Auth.getToken();
+        if (t) h.Authorization = 'Bearer ' + t;
+      } else if (CRM_CONFIG.anonKey && CRM_CONFIG.anonKey.startsWith('eyJ')) {
+        h.Authorization = 'Bearer ' + CRM_CONFIG.anonKey;
+      }
+      return h;
+    },
+    async fetchRows(table, query, options) {
+      if (!CRM_CONFIG.enabled || !CRM_CONFIG.url || !CRM_CONFIG.anonKey) return [];
+      const opt = options || {};
+      const limit = opt.limit || CRM_CONFIG.maxRows || 1000;
+      const out = [];
+      for (let from = 0; ; from += limit) {
+        const headers = await this._headers(false);
+        headers.Range = from + '-' + (from + limit - 1);
+        const qs = query ? (query.charAt(0) === '?' ? query : '?' + query) : '?select=*';
+        const res = await fetch(CRM_CONFIG.url + '/rest/v1/' + table + qs, { headers });
+        if (!res.ok) throw new Error(table + ' HTTP ' + res.status);
+        const page = await res.json();
+        if (!Array.isArray(page)) return [];
+        out.push(...page);
+        if (opt.singlePage || page.length < limit) break;
+      }
+      return out;
+    },
+    async tryRows(table, query, options) {
+      try { return await this.fetchRows(table, query, options); }
+      catch (e) { console.warn('[crm] ' + table + ' skipped: ' + e.message); return []; }
+    },
+    mapMasterData(raw) {
+      const d = { __source: 'crm' };
+      if (Array.isArray(raw.estimate_items) && raw.estimate_items.length) {
+        d.item = raw.estimate_items.map(r => ({
+          item_no: r.item_code || r.code || r.sku,
+          vendor_name: r.vendor_name || r.vendor || '',
+          description: r.description || r.item_description || r.name || '',
+          base_uom: r.uom || r.unit || 'PCS',
+          unit_price: +(r.promotion_price || r.unit_price || r.price || 0),
+          blocked: !!r.blocked
+        })).filter(r => r.item_no && r.description);
+      }
+      if (Array.isArray(raw.presale_db_service_types) && raw.presale_db_service_types.length) {
+        d.service_type = raw.presale_db_service_types.map(r => ({
+          code: r.service_type || r.code || r.name,
+          head_role: r.designation || r.head_role || 'Solution Architect Manager',
+          head_name: r.heading || r.head_name || '',
+          mkt_rate: +(r.rate_mkt || r.mkt_rate || 0),
+          appv_l1: +(r.appv_l1 || 0),
+          appv_l2: +(r.appv_l2 || 0),
+          approval_group: r.approval_group || r.service_type || r.code || ''
+        })).filter(r => r.code);
+      }
+      if (Array.isArray(raw.presale_db_sales) && raw.presale_db_sales.length) {
+        d.sale_team = raw.presale_db_sales.map(r => ({
+          name: r.sale_team || r.team || r.name,
+          head_name: r.head_of_sales || r.head_name || '',
+          c_level_role: r.c_level || r.c_level_role || 'C-Level',
+          c_level_name: r.c_level_name || ''
+        })).filter(r => r.name);
+      }
+      if (Array.isArray(raw.payment_terms) && raw.payment_terms.length) d.payment_terms = raw.payment_terms;
+      if (Array.isArray(raw.presale_db_exchange_rates) && raw.presale_db_exchange_rates.length) {
+        d.fx_rate = raw.presale_db_exchange_rates.map(r => ({
+          start_date: r.start_date,
+          end_date: r.finish_date || r.end_date,
+          usd: +(r.usd || r.usd_rate || 0),
+          cny: +(r.cny || r.cny_rate || 0)
+        })).filter(r => r.start_date && r.end_date);
+      }
+      return d;
+    },
+    async loadMasterData() {
+      const raw = {};
+      raw.estimate_items = await this.tryRows('estimate_items', 'select=item_code,description,uom,unit_price,promotion_price,blocked&order=item_code.asc');
+      raw.presale_db_service_types = await this.tryRows('presale_db_service_types', 'select=service_type,heading,designation,rate_mkt,appv_l1,appv_l2&order=service_type.asc');
+      raw.presale_db_sales = await this.tryRows('presale_db_sales', 'select=sale_team,head_of_sales,c_level,c_level_name&order=sale_team.asc');
+      raw.payment_terms = await this.tryRows('payment_terms', 'select=code,label_en,label_th,credit_days,is_default&order=code.asc');
+      raw.presale_db_exchange_rates = await this.tryRows('presale_db_exchange_rates', 'select=start_date,finish_date,usd,cny&order=start_date.desc');
+      return this.mapMasterData(raw);
+    },
+    async loadOrganizations(query) {
+      const q = encodeURIComponent((query || '').trim());
+      let filter = '';
+      if (q) filter = '&or=(name.ilike.*' + q + '*,customer_code.ilike.*' + q + '*,tax_id.ilike.*' + q + '*)';
+      const select = 'select=id,name,tax_id,branch_code,branch_name,billing_address,email,phone,customer_code,customer_prefix,payment_terms_code';
+      const rows = await this.tryRows('organizations', select + filter + '&order=name.asc&limit=50', { singlePage: true });
+      this.organizations = rows;
+      return rows;
+    }
+  };
+  window.CrmApi = CrmApi;
+
+  const CrmWrite = {
+    ESTIMATE_ID_KEY: 'crm_estimate_id_current',
+    estimateId() {
+      try { return localStorage.getItem(this.ESTIMATE_ID_KEY) || ''; } catch (e) { return ''; }
+    },
+    setEstimateId(id) {
+      try {
+        if (id) localStorage.setItem(this.ESTIMATE_ID_KEY, id);
+        else localStorage.removeItem(this.ESTIMATE_ID_KEY);
+      } catch (e) {}
+    },
+    _val(id) { const el = document.getElementById(id); return el ? el.value : null; },
+    _num(v) { return parseFloat(String(v == null ? '' : v).replace(/,/g, '')) || 0; },
+    async _headers(json) {
+      const h = await CrmApi._headers(json);
+      if (json) h.Prefer = 'return=representation';
+      return h;
+    },
+    _summary() {
+      if (typeof recalcAll === 'function') recalcAll();
+      const inv = (typeof getInvestmentTotals === 'function') ? getInvestmentTotals() : { cost: 0, sale: 0 };
+      const mrc = (typeof getMrcMonthly === 'function') ? getMrcMonthly() : { cost: 0, sale: 0 };
+      const summary = (typeof recalcSummary === 'function') ? recalcSummary() : {};
+      const term = (typeof getContractTermMonths === 'function') ? getContractTermMonths() : (parseInt(this._val('globalContractTerm')) || 36);
+      return { inv, mrc, summary, term };
+    },
+    _currentFx() {
+      try { return (fxRows || []).find(r => r.current) || (fxRows || [])[fxRows.length - 1] || {}; }
+      catch (e) { return {}; }
+    },
+    buildEstimateHeader(status) {
+      const s = this._summary();
+      const fx = this._currentFx();
+      const approval = window.__approval || {};
+      const payload = (typeof buildDraftState === 'function') ? buildDraftState() : null;
+      const row = {
+        organization_id: this._val('organizationId') || null,
+        deal_id: this._val('dealId') || null,
+        project_name: this._val('projectName') || '(untitled)',
+        customer_name: this._val('custName') || null,
+        service_type: this._val('serviceType') || null,
+        sale_name: this._val('salePerson') || null,
+        presales_name: this._val('preSales') || null,
+        project_type: this._val('projectType') || null,
+        payment_terms: this._val('paymentType') || null,
+        contract_term_months: s.term,
+        usd_rate: +fx.usd || null,
+        cny_rate: +fx.cny || null,
+        bid_bond_enabled: !!document.getElementById('chkBidBond')?.checked,
+        bid_bond_months: this._num(this._val('bidBondMonths')),
+        performance_bond_enabled: !!document.getElementById('chkPerfBond')?.checked,
+        telecom_license_enabled: !!document.getElementById('chkTelecomLicense')?.checked,
+        total_otc: Math.round(s.inv.sale + (window.__oprTotal || 0)),
+        total_mrc: Math.round(s.mrc.sale),
+        total_tcv: Math.round(s.summary.projectValue || 0),
+        project_value_thb: Math.round(s.summary.projectValue || 0),
+        gp_pct: +(s.summary.grossMargin || 0).toFixed(3),
+        np_pct: +(s.summary.netMargin || approval.netMargin || 0).toFixed(3),
+        net_margin_pct: +(s.summary.netMargin || approval.netMargin || 0).toFixed(3),
+        npv_thb: Math.round(s.summary.netProfit || window.__netProfit || 0),
+        app_payload: payload,
+        calculation_snapshot: payload,
+        status: status || 'draft'
+      };
+      Object.keys(row).forEach(k => { if (row[k] === undefined || row[k] === '') row[k] = null; });
+      return row;
+    },
+    _lineBase(lineType, seq, item) {
+      const qty = this._num(item.qty ?? item.quantity ?? item.unit ?? 0);
+      const cost = this._num(item.cost ?? item.costPrice ?? item.costPerUnit ?? item.costPerMonth ?? 0);
+      const sell = this._num(item.sell ?? item.sellPrice ?? item.salePerUnit ?? item.salePerMonth ?? item.unitPrice ?? 0);
+      return {
+        seq, line_type: lineType, source_tab: lineType,
+        item_code: item.code || item.itemCode || null,
+        item_description: item.desc || item.description || item.itemName || item.itemMeta || '-',
+        description: item.desc || item.description || item.itemName || item.itemMeta || '-',
+        supplier: item.vendor || item.pic || null,
+        category: item.category || null,
+        unit: item.uom || item.unitLabel || null,
+        quantity: qty,
+        cost_price: cost,
+        sell_price: sell,
+        amount_thb: Math.round(qty * sell),
+        amount_cost: Math.round(qty * cost),
+        amount_sell: Math.round(qty * sell),
+        currency: 'THB',
+        fx_rate: 1,
+        remark: item.remark || null
+      };
+    },
+    buildEstimateLines(estimateId) {
+      const lines = [];
+      let seq = 0;
+      try {
+        (investmentRows || []).forEach(r => {
+          const qty = this._num(r.unit);
+          const line = this._lineBase('otc', ++seq, {
+            code: r.code, vendor: r.vendor, desc: r.desc, qty,
+            cost: r.costPerUnit, sell: r.salePerUnit, remark: r.remark
+          });
+          if (estimateId) line.estimate_id = estimateId;
+          lines.push(line);
+        });
+      } catch (e) {}
+      try {
+        (mrcManager?.state?.rows || []).forEach(r => {
+          const line = this._lineBase('mrc', ++seq, {
+            code: r.code, vendor: r.vendor, desc: r.desc, qty: r.unit,
+            cost: r.costPerMonth, sell: r.salePerMonth, remark: r.remark
+          });
+          if (estimateId) line.estimate_id = estimateId;
+          lines.push(line);
+        });
+      } catch (e) {}
+      const addInstallRows = (mgr, type) => {
+        try {
+          (mgr?.state?.rows || []).forEach(r => {
+            const line = this._lineBase(type, ++seq, {
+              code: r.code, vendor: r.pic, desc: r.itemName || r.itemMeta, qty: r.qty,
+              cost: r.unitPrice, sell: r.unitPrice, remark: r.remark
+            });
+            if (estimateId) line.estimate_id = estimateId;
+            lines.push(line);
+          });
+        } catch (e) {}
+      };
+      addInstallRows(installManager, 'install');
+      addInstallRows(pmcmManager, 'pmcm');
+      const oprCodes = [
+        [1,'OPR-100001'], [2,'OPR-100002'], [3,'OPR-100003'], [4,'OPR-100004'], [5,'OPR-100005'], [6,'OPR-100006'],
+        [7,'OPR-100007'], [8,'OPR-100008'], [9,'OPR-100009'], [10,'OPR-100010'], [11,'OPR-100011'], [12,'OPR-100012'], [13,'OPR-100013']
+      ];
+      oprCodes.forEach(([n, code]) => {
+        const amount = n <= 6 || n === 12 ? this._num(this._val('opr' + n + '-val')) : this._num(document.getElementById('opr' + n + '-amount')?.textContent);
+        if (!amount) return;
+        const desc = document.getElementById('opr' + n + '-desc')?.textContent || code;
+        const line = this._lineBase('opex', ++seq, { code, desc, qty: 1, cost: amount, sell: amount, remark: desc });
+        if (estimateId) line.estimate_id = estimateId;
+        lines.push(line);
+      });
+      return lines;
+    },
+    async _postEstimate(row) {
+      const id = this.estimateId();
+      const headers = await this._headers(true);
+      let url = CRM_CONFIG.url + '/rest/v1/estimates';
+      let method = 'POST';
+      if (id) { url += '?id=eq.' + encodeURIComponent(id); method = 'PATCH'; }
+      const res = await fetch(url, { method, headers, body: JSON.stringify(row) });
+      if (!res.ok) {
+        const txt = await res.text();
+        if (/column|schema cache|PGRST204|Could not find/i.test(txt)) {
+          const minimal = {
+            organization_id: row.organization_id,
+            deal_id: row.deal_id,
+            project_name: row.project_name,
+            customer_name: row.customer_name,
+            service_type: row.service_type,
+            contract_term_months: row.contract_term_months,
+            project_value_thb: row.project_value_thb,
+            np_pct: row.np_pct,
+            status: row.status
+          };
+          Object.keys(minimal).forEach(k => { if (minimal[k] == null) delete minimal[k]; });
+          const retry = await fetch(url, { method, headers, body: JSON.stringify(minimal) });
+          if (!retry.ok) throw new Error('estimates ' + retry.status + ': ' + ((await retry.text()) || '').slice(0, 180));
+          const retryBody = await retry.json().catch(() => []);
+          const retrySaved = Array.isArray(retryBody) ? retryBody[0] : retryBody;
+          if (retrySaved && retrySaved.id) this.setEstimateId(retrySaved.id);
+          return retrySaved || {};
+        }
+        throw new Error('estimates ' + res.status + ': ' + (txt || '').slice(0, 180));
+      }
+      const body = await res.json().catch(() => []);
+      const saved = Array.isArray(body) ? body[0] : body;
+      if (saved && saved.id) this.setEstimateId(saved.id);
+      return saved || {};
+    },
+    async _replaceLines(estimateId, lines) {
+      if (!estimateId) return { skipped: true, reason: 'missing estimate_id' };
+      const headers = await this._headers(true);
+      headers.Prefer = 'return=minimal';
+      const del = await fetch(CRM_CONFIG.url + '/rest/v1/estimate_lines?estimate_id=eq.' + encodeURIComponent(estimateId), { method: 'DELETE', headers });
+      if (!del.ok && del.status !== 404) throw new Error('estimate_lines delete ' + del.status + ': ' + ((await del.text()) || '').slice(0, 180));
+      if (!lines.length) return { ok: true, count: 0 };
+      const ins = await fetch(CRM_CONFIG.url + '/rest/v1/estimate_lines', { method: 'POST', headers, body: JSON.stringify(lines) });
+      if (!ins.ok) {
+        const txt = await ins.text();
+        if (/column|schema cache|PGRST204|Could not find/i.test(txt)) {
+          const minimal = lines.map(l => ({
+            estimate_id: l.estimate_id,
+            seq: l.seq,
+            line_type: l.line_type,
+            item_code: l.item_code,
+            description: l.description,
+            quantity: l.quantity,
+            cost_price: l.cost_price,
+            sell_price: l.sell_price,
+            amount_thb: l.amount_thb,
+            remark: l.remark
+          }));
+          const retry = await fetch(CRM_CONFIG.url + '/rest/v1/estimate_lines', { method: 'POST', headers, body: JSON.stringify(minimal) });
+          if (!retry.ok) throw new Error('estimate_lines insert ' + retry.status + ': ' + ((await retry.text()) || '').slice(0, 180));
+          return { ok: true, count: minimal.length };
+        }
+        throw new Error('estimate_lines insert ' + ins.status + ': ' + (txt || '').slice(0, 180));
+      }
+      return { ok: true, count: lines.length };
+    },
+    async saveEstimateDraft(status) {
+      if (!CRM_CONFIG.enabled) return { skipped: true, reason: 'CRM disabled' };
+      const row = this.buildEstimateHeader(status || 'draft');
+      const saved = await this._postEstimate(row);
+      const estimateId = saved.id || this.estimateId();
+      const lines = this.buildEstimateLines(estimateId);
+      const lineResult = await this._replaceLines(estimateId, lines);
+      return { ok: true, estimate_id: estimateId, estimate_no: saved.estimate_no || null, lines: lineResult.count || 0 };
+    }
+  };
+  window.CrmWrite = CrmWrite;
+
+  function renderCrmCustomerOptions(rows) {
+    const list = document.getElementById('crmCustomerOptions');
+    if (!list) return;
+    list.innerHTML = (rows || []).map(o => {
+      const label = [o.name, o.customer_code, o.tax_id].filter(Boolean).join(' | ');
+      return '<option value="' + escapeHtml(o.name || '') + '" label="' + escapeHtml(label) + '"></option>';
+    }).join('');
+  }
+
+  function applyCrmCustomer(org) {
+    const orgId = document.getElementById('organizationId');
+    const hint = document.getElementById('crmCustomerHint');
+    if (orgId) orgId.value = org && org.id ? org.id : '';
+    if (hint) {
+      if (org && org.id) {
+        const meta = [org.customer_code, org.tax_id, org.payment_terms_code].filter(Boolean).join(' | ');
+        hint.textContent = 'CRM organization linked' + (meta ? ': ' + meta : '');
+      } else {
+        hint.textContent = '';
+      }
+    }
+  }
+
+  function crmOnCustomerInput(value, silent) {
+    const name = (value || '').trim().toLowerCase();
+    const org = (CrmApi.organizations || []).find(o => (o.name || '').trim().toLowerCase() === name);
+    applyCrmCustomer(org || null);
+    if (!silent && typeof markDirty === 'function') markDirty();
+  }
+  window.crmOnCustomerInput = crmOnCustomerInput;
+
+  async function loadCrmCustomers(query) {
+    if (!window.CrmApi) return { skipped: true };
+    const rows = await CrmApi.loadOrganizations(query || document.getElementById('custName')?.value || '');
+    renderCrmCustomerOptions(rows);
+    crmOnCustomerInput(document.getElementById('custName')?.value || '', true);
+    return { ok: true, count: rows.length };
+  }
+  window.loadCrmCustomers = loadCrmCustomers;
 
   function showAuthOverlay(show) {
     const o = document.getElementById('authOverlay');
@@ -5988,7 +6429,7 @@ window.onload = function() {
       await Auth.signInPassword(email, pw);
       const u = await Auth.loadAppUser();
       if (!u) { setAuthError('เข้าสู่ระบบสำเร็จ แต่ไม่พบสิทธิ์ผู้ใช้ — auth_uid ยังไม่ถูกผูกกับ app_user'); }
-      else { applyAuthedUser(u); showAuthOverlay(false); if (typeof DbWrite !== 'undefined') { try { await DbWrite.loadApprovalState(); } catch (e) {} try { await DbWrite.loadQuotations(); } catch (e) {} } }
+      else { applyAuthedUser(u); showAuthOverlay(false); if (typeof loadMasterData === 'function') { try { await loadMasterData(); } catch (e) {} } if (typeof loadCrmCustomers === 'function') { try { await loadCrmCustomers(); } catch (e) {} } if (typeof DbWrite !== 'undefined' && Auth.sameProject(DB_CONFIG)) { try { await DbWrite.loadApprovalState(); } catch (e) {} try { await DbWrite.loadQuotations(); } catch (e) {} } }
     } catch (e) { setAuthError('เข้าสู่ระบบไม่สำเร็จ: ' + e.message); }
     finally { if (btn) btn.disabled = false; }
   }
@@ -6014,7 +6455,9 @@ window.onload = function() {
       const u = await Auth.loadAppUser();
       if (u) {
         applyAuthedUser(u); showAuthOverlay(false);
-        if (typeof DbWrite !== 'undefined') { try { await DbWrite.loadApprovalState(); } catch (e) {} try { await DbWrite.loadQuotations(); } catch (e) {} }
+        if (typeof loadMasterData === 'function') { try { await loadMasterData(); } catch (e) {} }
+        if (typeof loadCrmCustomers === 'function') { try { await loadCrmCustomers(); } catch (e) {} }
+        if (typeof DbWrite !== 'undefined' && Auth.sameProject(DB_CONFIG)) { try { await DbWrite.loadApprovalState(); } catch (e) {} try { await DbWrite.loadQuotations(); } catch (e) {} }
         return;
       }
     }
@@ -6541,6 +6984,18 @@ window.onload = function() {
       fxIdCounter = fxRows.length + 1;
       if (typeof fxRender === 'function') fxRender();
     }
+    if (Array.isArray(d.payment_terms) && d.payment_terms.length) {
+      const sel = document.getElementById('paymentType');
+      if (sel) {
+        const current = sel.value;
+        sel.innerHTML = d.payment_terms.map(r => {
+          const val = r.code || r.label_en || r.label_th || '';
+          const label = r.label_th || r.label_en || r.code || '';
+          return '<option value="' + escapeHtml(val) + '">' + escapeHtml(label) + '</option>';
+        }).join('');
+        if ([...sel.options].some(o => o.value === current)) sel.value = current;
+      }
+    }
     window.__masterSource = d.__source || 'db';
   }
   window.applyMasterData = applyMasterData;
@@ -6551,7 +7006,22 @@ window.onload = function() {
       const cached = JSON.parse(localStorage.getItem(MASTER_CACHE_KEY) || 'null');
       if (cached) { cached.__source = 'cache'; applyMasterData(cached); }
     } catch (e) { /* cache เสีย — ข้าม */ }
-    if (!DB_CONFIG.url || !DB_CONFIG.anonKey) return; // ยังไม่ตั้งค่า DB → คงข้อมูล demo/cache
+    if (typeof CrmApi !== 'undefined' && CRM_CONFIG.enabled) {
+      try {
+        const crmData = await CrmApi.loadMasterData();
+        const hasCrmData = ['item','service_type','sale_team','fx_rate'].some(k => Array.isArray(crmData[k]) && crmData[k].length);
+        if (hasCrmData) {
+          applyMasterData(crmData);
+          try { localStorage.setItem(MASTER_CACHE_KEY, JSON.stringify(crmData)); } catch (e) { /* quota */ }
+          if (typeof recalcAll === 'function') recalcAll();
+          console.info('[master] loaded from CRM Sale Compass');
+          return;
+        }
+      } catch (e) {
+        console.warn('[master] CRM load failed - fallback to legacy DB/cache/demo: ' + e.message);
+      }
+    }
+    if (!DB_CONFIG.url || !DB_CONFIG.anonKey) return; // DB not configured -> keep demo/cache
     try {
       const tables = ['item', 'service_type', 'sale_team', 'mrc_catalog', 'install_pmcm_standard', 'fx_rate'];
       const data = {};
@@ -6630,6 +7100,7 @@ window.onload = function() {
     if (typeof renderPipeline === 'function') renderPipeline();
     if (typeof onGlobalRoleChange === 'function') onGlobalRoleChange(document.getElementById('globalUserRole')?.value || 'presale');
     if (typeof loadMasterData === 'function') loadMasterData(); // async — master จาก Supabase/cache (Phase 1)
+    if (typeof loadCrmCustomers === 'function') loadCrmCustomers(); // async - CRM organizations selector
     if (typeof updateEstNoDisplay === 'function') updateEstNoDisplay(); // แสดง est_no จริงที่ subtitle
     if (typeof updatePipelineNames === 'function') updatePipelineNames(); // ชื่อ pipeline อิง service/team ปัจจุบัน
     if (typeof initAuth === 'function') initAuth(); // Phase 2.4 — gate ทำงานเมื่อ AUTH_CONFIG.enabled = true เท่านั้น
