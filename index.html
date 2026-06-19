@@ -666,9 +666,10 @@
     <div class="section">
       <div class="section-header">
         <div class="section-bar" style="background: var(--primary);"></div>
-        <div class="section-title">ข้อมูลลูกค้าและโครงการ</div>
+        <div class="section-title">ข้อมูล Organization และโครงการ</div>
       </div>
       <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px;">
+<<<<<<< Updated upstream
         <div class="form-group">
           <label class="form-label">Customer <span class="required">*</span></label>
           <input class="form-input" type="text" id="custName" value="Central Food Retail Co., Ltd."
@@ -677,6 +678,14 @@
           <input type="hidden" id="organizationId">
           <input type="hidden" id="dealId">
           <div class="field-hint" id="crmCustomerHint"></div>
+=======
+        <div class="form-group" style="position:relative;">
+          <label class="form-label">Organization <span class="required">*</span></label>
+          <input class="form-input" type="text" id="orgName" value="Central Food Retail Co., Ltd." autocomplete="off" placeholder="พิมพ์ ≥2 ตัวเพื่อค้นจาก CRM">
+          <input type="hidden" id="orgId">
+          <input type="hidden" id="orgCode">
+          <div id="orgSearchPanel" style="display:none; position:absolute; z-index:50; left:0; right:0; top:62px; background:#fff; border:1px solid var(--border); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.12); max-height:280px; overflow:auto;"></div>
+>>>>>>> Stashed changes
         </div>
         <div class="form-group">
           <label class="form-label">Project <span class="required">*</span></label>
@@ -1365,7 +1374,7 @@
 
         <!-- GROUP C: Customer + Overhead -->
         <div class="opr-section">
-          <span>Customer relations & overhead</span>
+          <span>Organization relations & overhead</span>
         </div>
 
         <div class="opr-row">
@@ -1705,7 +1714,7 @@
       </div>
       <div class="data-table" style="margin-top:8px;">
         <div class="qt-row" style="font-weight:600; font-size:11px; color:var(--text-secondary); background:var(--bg-secondary);">
-          <div>EST No.</div><div>Customer</div><div>Project</div><div style="text-align:center;">Status</div><div>Updated</div><div style="text-align:center;">Actions</div>
+          <div>EST No.</div><div>Organization</div><div>Project</div><div style="text-align:center;">Status</div><div>Updated</div><div style="text-align:center;">Actions</div>
         </div>
         <div id="estSheetListBody"></div>
         <div id="estSheetEmptyState" class="empty-state" style="display:none; padding:18px; font-size:12px;">ยังไม่มี Estimated Cost Sheet ที่บันทึกไว้ — กด Save/Submit เพื่อบันทึกใบปัจจุบันลงฐานข้อมูล</div>
@@ -2134,8 +2143,8 @@
               <input class="form-input fmt-num" type="text" inputmode="decimal" id="convertDiscount" value="0">
             </div>
             <div class="form-group">
-              <label class="form-label">รหัสลูกค้า (Customer ID)</label>
-              <input class="form-input" type="text" id="convertCustId" placeholder="เช่น CTD2302193">
+              <label class="form-label">รหัส Organization (Organization ID)</label>
+              <input class="form-input" type="text" id="convertOrgId" placeholder="เช่น CTD2302193">
             </div>
           </div>
           <div class="form-group">
@@ -2721,6 +2730,8 @@
 
     // Legacy shape (v1 = flat formData) → restore ได้เฉพาะ fields
     const fields = saved.version >= 2 ? saved.fields : saved;
+    // migrate legacy draft: field id custName → orgName (renamed) เพื่อไม่ให้ค่าเดิมหาย
+    if (fields && typeof fields === 'object' && fields.custName && !fields.orgName) fields.orgName = fields.custName;
     if (fields && typeof fields === 'object') {
       Object.keys(fields).forEach(id => {
         const el = document.getElementById(id);
@@ -4749,7 +4760,7 @@
       let estNo = sel.options[0].value;
       try { if (typeof DbWrite !== 'undefined') estNo = DbWrite.estNo(); } catch (e) {}
       sel.options[0].value = estNo;
-      const cust = (document.getElementById('custName')?.value || '-').trim();
+      const cust = (document.getElementById('orgName')?.value || '-').trim();
       const proj = (document.getElementById('projectName')?.value || '-').trim();
       sel.options[0].textContent = estNo + ' — ' + cust + ' · ' + proj;
     }
@@ -4775,9 +4786,9 @@
     quotations.unshift({
       no: 'QT-202605-' + seq, estNo,
       // อ่านจากฟอร์ม Tab 1 + modal จริง — ไม่ hardcode ลูกค้า/โครงการ
-      customer: document.getElementById('custName')?.value || '-',
+      customer: document.getElementById('orgName')?.value || '-',
       project: document.getElementById('projectName')?.value || '-',
-      custId: document.getElementById('convertCustId')?.value || '',
+      custId: document.getElementById('convertOrgId')?.value || '',
       remark: document.getElementById('convertRemark')?.value || '',
       quoteType: document.querySelector('input[name="quoteType"]:checked')?.value || 'onetime',
       salesperson: document.getElementById('salePerson')?.value || '',
@@ -5210,7 +5221,7 @@ window.onload = function() {
     return {
       estNo: (typeof DbWrite !== 'undefined') ? DbWrite.estNo() : 'EST-',
       date: new Date(),
-      cust: val('custName'), project: val('projectName'),
+      cust: val('orgName'), project: val('projectName'),
       projectType: val('projectType'), payment: val('paymentType'),
       service: val('serviceType'), group: val('saleGroup'), sale: val('salePerson'), preSales: val('preSales'),
       term, credit: parseInt(val('free-period')) || 0,
@@ -6836,7 +6847,7 @@ window.onload = function() {
     try { pmcmManager.state.rows = []; pmcmManager.state.counter = 0; pmcmManager.render(); } catch (e) {}
     try { serviceLines = []; if (typeof renderServiceLines === 'function') renderServiceLines(); } catch (e) {}
     // ล้างฟิลด์ identity + คืนค่า default ทั่วไปของ select
-    ['custName', 'projectName'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    ['orgName', 'projectName'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
     const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
     setVal('projectType', 'New');
     setVal('paymentType', 'One Time');
@@ -6912,9 +6923,9 @@ window.onload = function() {
   // doSave() จัดการ localStorage + เขียน est_document (payload + snapshot project_value/net_profit/
   // net_margin/required_level) ลง DB best-effort พร้อม toast อยู่แล้ว — submitSave แค่ validate + เรียก
   function submitSave() {
-    const cust = (document.getElementById('custName')?.value || '').trim();
+    const cust = (document.getElementById('orgName')?.value || '').trim();
     const proj = (document.getElementById('projectName')?.value || '').trim();
-    if (!cust || !proj) { if (typeof dbNotify === 'function') dbNotify('กรุณากรอก Customer และ Project ก่อนบันทึก', true); return; }
+    if (!cust || !proj) { if (typeof dbNotify === 'function') dbNotify('กรุณากรอก Organization และ Project ก่อนบันทึก', true); return; }
     if (typeof doSave === 'function') doSave();
     if (!(AUTH_CONFIG.enabled && typeof Auth !== 'undefined' && Auth.isAuthed()) && typeof dbNotify === 'function') {
       dbNotify('บันทึกในเครื่องแล้ว (เปิด AUTH + เข้าสู่ระบบเพื่อบันทึกลงฐานข้อมูล)');
@@ -7272,6 +7283,100 @@ window.onload = function() {
     img.style.padding = '2px';
     appLogoIcon.parentNode.replaceChild(img, appLogoIcon);
   }
+</script>
+<script>
+/* ===== Organization smart-search → CRM Sale Compass (lzuxhvpdruaiacfhaqqh) =====
+   Feature: เลือก Organization จากฐานข้อมูล CRM (table organizations) แบบ smart search
+   - organizations เปิดอ่านเฉพาะ authenticated (RLS) → ครั้งแรกขอ login CRM ในแผงค้นหา
+   - เลือกแล้วผูก organization_id (#orgId) + customer_code (#orgCode) เป็น FK ตาม Sale Compass
+   - บล็อกอิสระจากโค้ดหลัก ถอดออกได้โดยไม่กระทบส่วนอื่น */
+(function () {
+  'use strict';
+  const CRM = {
+    url: 'https://lzuxhvpdruaiacfhaqqh.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx6dXhodnBkcnVhaWFjZmhhcXFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MTU4MjMsImV4cCI6MjA5MjQ5MTgyM30.f2eQ3u8amWUL6FlTQQS8hdZstBS6076PzkGlw8aLLYs'
+  };
+  const TKEY = 'crm_access_token';
+  const input = document.getElementById('orgName');
+  const panel = document.getElementById('orgSearchPanel');
+  const hidId = document.getElementById('orgId');
+  const hidCode = document.getElementById('orgCode');
+  if (!input || !panel || !hidId || !hidCode) return;
+
+  const getTok = () => { try { return localStorage.getItem(TKEY) || ''; } catch (e) { return ''; } };
+  const setTok = t => { try { t ? localStorage.setItem(TKEY, t) : localStorage.removeItem(TKEY); } catch (e) {} };
+  const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  const open = html => { panel.innerHTML = html; panel.style.display = 'block'; };
+  const close = () => { panel.style.display = 'none'; };
+  const dirty = () => { if (typeof window.markDirty === 'function') window.markDirty(); };
+
+  async function crmLogin(email, password) {
+    const r = await fetch(CRM.url + '/auth/v1/token?grant_type=password', {
+      method: 'POST', headers: { apikey: CRM.anonKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error_description || d.msg || ('login ' + r.status));
+    setTok(d.access_token); return d.access_token;
+  }
+
+  async function search(term) {
+    if (!getTok()) { renderLogin(); return; }
+    const f = encodeURIComponent('%' + term + '%');
+    const url = CRM.url + '/rest/v1/organizations?select=id,name,customer_code,tax_id,branch_name'
+      + '&or=(name.ilike.' + f + ',customer_code.ilike.' + f + ',tax_id.ilike.' + f + ')&order=name&limit=15';
+    let rows;
+    try {
+      const r = await fetch(url, { headers: { apikey: CRM.anonKey, Authorization: 'Bearer ' + getTok() } });
+      if (r.status === 401) { setTok(''); renderLogin('session CRM หมดอายุ — เข้าสู่ระบบใหม่'); return; }
+      rows = await r.json();
+    } catch (e) { open('<div style="padding:10px;color:#dc2626;font-size:13px;">เชื่อมต่อ CRM ไม่ได้: ' + esc(e.message) + '</div>'); return; }
+    renderResults(Array.isArray(rows) ? rows : []);
+  }
+
+  function renderResults(rows) {
+    if (!rows.length) { open('<div style="padding:10px;color:#64748b;font-size:13px;">ไม่พบ Organization</div>'); return; }
+    open(rows.map(o =>
+      '<div class="org-opt" data-id="' + esc(o.id) + '" data-name="' + esc(o.name) + '" data-code="' + esc(o.customer_code || '') + '"'
+      + ' style="padding:8px 10px;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:13px;">'
+      + '<div style="font-weight:500;">' + esc(o.name) + '</div>'
+      + '<div style="color:#64748b;font-size:11px;">' + esc(o.customer_code || '—') + (o.branch_name ? ' · ' + esc(o.branch_name) : '') + '</div></div>'
+    ).join(''));
+    panel.querySelectorAll('.org-opt').forEach(el => el.onclick = () => {
+      input.value = el.dataset.name; hidId.value = el.dataset.id; hidCode.value = el.dataset.code;
+      close(); dirty();
+    });
+  }
+
+  function renderLogin(note) {
+    open('<div style="padding:10px;font-size:13px;">'
+      + (note ? '<div style="color:#d97706;margin-bottom:6px;">' + esc(note) + '</div>' : '')
+      + '<div style="color:#64748b;margin-bottom:6px;">เข้าสู่ระบบ CRM เพื่อค้น Organization</div>'
+      + '<input id="crmEmail" placeholder="email" autocomplete="username" style="width:100%;box-sizing:border-box;margin-bottom:6px;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;">'
+      + '<input id="crmPwd" type="password" placeholder="password" autocomplete="current-password" style="width:100%;box-sizing:border-box;margin-bottom:6px;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;">'
+      + '<button id="crmGo" type="button" style="width:100%;padding:6px;border:0;border-radius:6px;background:#2563eb;color:#fff;cursor:pointer;">เข้าสู่ระบบ</button>'
+      + '<div id="crmErr" style="color:#dc2626;font-size:12px;margin-top:6px;"></div></div>');
+    const go = async () => {
+      const em = panel.querySelector('#crmEmail').value.trim(), pw = panel.querySelector('#crmPwd').value;
+      if (!em || !pw) { panel.querySelector('#crmErr').textContent = 'กรอก email + password'; return; }
+      try { await crmLogin(em, pw); search(input.value.trim()); }
+      catch (e) { panel.querySelector('#crmErr').textContent = e.message; }
+    };
+    panel.querySelector('#crmGo').onclick = go;
+    panel.querySelector('#crmPwd').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+  }
+
+  let t;
+  input.addEventListener('input', () => {
+    hidId.value = ''; hidCode.value = '';   // พิมพ์เอง = ยกเลิกการผูก organization_id เดิม
+    dirty();
+    clearTimeout(t);
+    const term = input.value.trim();
+    if (term.length < 2) { close(); return; }
+    t = setTimeout(() => search(term), 300);
+  });
+  document.addEventListener('click', e => { if (!panel.contains(e.target) && e.target !== input) close(); });
+})();
 </script>
 </body>
 </html>
